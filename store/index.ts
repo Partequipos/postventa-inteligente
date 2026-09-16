@@ -80,7 +80,12 @@ export const useUserStore = create<UserState>()((set) => ({
   authReady: false,
 
   setUser: (user) => {
-    touchLastActivity();
+    // Solo reinicia el reloj de inactividad en login / hidratación,
+    // no en cada TOKEN_REFRESHED (setUser se llama también ahí).
+    const wasAuth = useUserStore.getState().isAuthenticated;
+    if (!wasAuth) {
+      touchLastActivity();
+    }
     set({
       currentUser: user,
       role: user.role,

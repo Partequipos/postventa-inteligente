@@ -126,6 +126,8 @@ export interface AuthResult {
   sessionExists: boolean;
 }
 
+export type AuthChangeReason = 'signed_out' | 'initial' | 'update';
+
 /**
  * Login con Supabase Auth. Si Supabase no está configurado, usa mock local.
  */
@@ -166,55 +168,68 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Restaura el usuario desde el JWT persistido (localStorage).
- * No borra la sesión ante fallos transitorios de red: intenta refresh primero.
+ * Restaura el usuario desde el JWT en localStorage.
+ * Usa solo getSession (sin getUser/refresh agresivo) para no borrar el token
+ * ante fallos de red al recargar o al pulsar Actualizar.
  */
 export async function getSessionUser(): Promise<User | null> {
   if (!isSupabaseConfigured()) return null;
 
   const supabase = getSupabaseClient();
-
   const { data: sessionData } = await supabase.auth.getSession();
-  let authUser = sessionData.session?.user ?? null;
-
+  const authUser = sessionData.session?.user ?? null;
   if (!authUser) return null;
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (!userError && userData.user) {
-    authUser = userData.user;
-  } else {
-    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshed.session?.user) {
-      // Sesión inválida / expirada de verdad
+  try {
+    const user = await fetchProfileAsUser(authUser.id, authUser.email ?? '');
+    if (user.isActive === false) {
+      await supabase.auth.signOut();
       return null;
     }
-    authUser = refreshed.session.user;
+    return user;
+  } catch {
+    // Perfil no disponible: mantener sesión con datos mínimos del JWT
+    return buildUser({
+      id: authUser.id,
+      email: authUser.email ?? '',
+      name: authUser.email?.split('@')[0] || 'Usuario',
+      role: 'Viewer',
+    });
   }
-
-  const user = await fetchProfileAsUser(authUser.id, authUser.email ?? '');
-  if (user.isActive === false) {
-    await supabase.auth.signOut();
-    return null;
-  }
-  return user;
 }
 
-async function resolveUserFromSession(
+async function resolveUserFromAuthUser(
   userId: string,
   email: string
 ): Promise<User | null> {
-  const user = await fetchProfileAsUser(userId, email);
-  if (user.isActive === false) {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
-    return null;
+  try {
+    const user = await fetchProfileAsUser(userId, email);
+    if (user.isActive === false) {
+      await getSupabaseClient().auth.signOut();
+      return null;
+    }
+    return user;
+  } catch {
+    return buildUser({
+      id: userId,
+      email,
+      name: email.includes('@') ? email.split('@')[0] : email || 'Usuario',
+      role: 'Viewer',
+    });
   }
-  return user;
 }
 
-/** Suscripción a cambios de sesión Supabase (SIGNED_IN / SIGNED_OUT / refresh). */
+/**
+ * Diferir trabajo async fuera del lock interno de GoTrue
+ * (evitar deadlock / SIGNED_OUT fantasma al refrescar token).
+ */
+function deferAuthWork(work: () => void): void {
+  globalThis.setTimeout(work, 0);
+}
+
+/** Suscripción a cambios de sesión Supabase. */
 export function subscribeAuthChanges(
-  onUser: (user: User | null) => void,
+  onUser: (user: User | null, reason: AuthChangeReason) => void,
   onReady?: () => void
 ): () => void {
   if (!isSupabaseConfigured()) {
@@ -231,54 +246,49 @@ export function subscribeAuthChanges(
     onReady?.();
   };
 
-  const applySessionUser = async (
-    userId: string,
-    email: string,
-    allowRecover: boolean
-  ): Promise<void> => {
-    try {
-      const user = await resolveUserFromSession(userId, email);
-      onUser(user);
-    } catch {
-      if (!allowRecover) return;
-      const recovered = await getSessionUser();
-      onUser(recovered);
-    }
-  };
-
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((event, session) => {
-    void (async () => {
-      if (event === 'SIGNED_OUT') {
-        onUser(null);
-        markReady();
-        return;
-      }
-
-      if (event === 'INITIAL_SESSION') {
-        if (session?.user) {
-          await applySessionUser(session.user.id, session.user.email ?? '', true);
-        } else {
-          onUser(null);
+    deferAuthWork(() => {
+      void (async () => {
+        if (event === 'SIGNED_OUT') {
+          onUser(null, 'signed_out');
+          markReady();
+          return;
         }
-        markReady();
-        return;
-      }
 
-      if (!session?.user) {
-        onUser(null);
-        return;
-      }
+        if (event === 'INITIAL_SESSION') {
+          if (session?.user) {
+            const user = await resolveUserFromAuthUser(
+              session.user.id,
+              session.user.email ?? ''
+            );
+            onUser(user, 'initial');
+          } else {
+            onUser(null, 'initial');
+          }
+          markReady();
+          return;
+        }
 
-      if (
-        event === 'SIGNED_IN' ||
-        event === 'TOKEN_REFRESHED' ||
-        event === 'USER_UPDATED'
-      ) {
-        await applySessionUser(session.user.id, session.user.email ?? '', false);
-      }
-    })();
+        // No limpiar sesión en eventos intermedios sin user (p. ej. refresh en curso).
+        if (!session?.user) {
+          return;
+        }
+
+        if (
+          event === 'SIGNED_IN' ||
+          event === 'TOKEN_REFRESHED' ||
+          event === 'USER_UPDATED'
+        ) {
+          const user = await resolveUserFromAuthUser(
+            session.user.id,
+            session.user.email ?? ''
+          );
+          if (user) onUser(user, 'update');
+        }
+      })();
+    });
   });
 
   return () => {
