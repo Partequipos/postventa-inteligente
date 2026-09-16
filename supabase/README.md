@@ -18,6 +18,7 @@ La aplicación **no crea** las tablas automáticamente.
 | 9 | `schema/08_temparios_admin.sql` | Índice legacy_id + SELECT admin (temparios) |
 | 10 | `schema/09_seed_admin_user.sql` | Usuario admin@partequipos.com / password123 |
 | — | `schema/30_temparios_admin_batch_delete.sql` | Temparios: import_batch_id + DELETE admin por lote |
+| — | `schema/31_telemetria_distancia_caucasia_villavicencio.sql` | Telemetría: Distancia Caucasia + Villavicencio |
 | 11 | `schema/10_temparios_excel_columns.sql` | Columna tipo_catalogo (derivado de Modelo2) |
 | 12 | `schema/11_temparios_upsert_legacy.sql` | UNIQUE legacy_id para upsert masivo |
 | 13 | `schema/12_temparios_filter_views.sql` | Vistas DISTINCT marca/modelo/tipo para filtros |

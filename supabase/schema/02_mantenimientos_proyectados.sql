@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS telemetria_equipos (
   distancia_bucaramanga   NUMERIC(18, 6),
   distancia_ibague        NUMERIC(18, 6),
   distancia_istmina       NUMERIC(18, 6),
+  distancia_caucasia      NUMERIC(18, 6),
+  distancia_villavicencio NUMERIC(18, 6),
   distancia_minima        NUMERIC(18, 6),
   sede                    TEXT,
   asesor_secundario_email TEXT,

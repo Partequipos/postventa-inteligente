@@ -323,6 +323,8 @@ function toTelemetriaPayload(
     distancia_bucaramanga: row.distancia_bucaramanga,
     distancia_ibague: row.distancia_ibague,
     distancia_istmina: row.distancia_istmina,
+    distancia_caucasia: row.distancia_caucasia,
+    distancia_villavicencio: row.distancia_villavicencio,
     distancia_minima: row.distancia_minima,
     sede: row.sede,
     asesor_email: row.asesor_email,

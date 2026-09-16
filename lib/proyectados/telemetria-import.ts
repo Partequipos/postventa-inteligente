@@ -33,6 +33,8 @@ export const TELEMETRIA_EXCEL_COLUMNS = [
   'Distancia Bucaramanga',
   'Distancia Ibague',
   'Distancia Istmina',
+  'Distancia Caucasia',
+  'Distancia Villavicencio',
   'Distacia Minima',
   'Sede',
   'ASESOR',
@@ -85,6 +87,8 @@ export interface TelemetriaMappedRow {
   distancia_bucaramanga: number | null;
   distancia_ibague: number | null;
   distancia_istmina: number | null;
+  distancia_caucasia: number | null;
+  distancia_villavicencio: number | null;
   distancia_minima: number | null;
   sede: string | null;
   asesor_email: string | null;
@@ -543,6 +547,12 @@ export function mapTelemetriaSheetRow(
     distancia_bucaramanga: toNumberOrNull(getField(row, 'Distancia Bucaramanga')),
     distancia_ibague: toNumberOrNull(getField(row, 'Distancia Ibague', 'Distancia Ibagué')),
     distancia_istmina: toNumberOrNull(getField(row, 'Distancia Istmina')),
+    distancia_caucasia: toNumberOrNull(
+      getField(row, 'Distancia Caucasia', 'Distacia Caucasia', 'Distancia Caucsia')
+    ),
+    distancia_villavicencio: toNumberOrNull(
+      getField(row, 'Distancia Villavicencio', 'Distacia Villavicencio')
+    ),
     distancia_minima: toNumberOrNull(getField(row, 'Distacia Minima', 'Distancia Minima', 'Distancia Mínima')),
     sede: cleanCell(getField(row, 'Sede', 'sede')),
     asesor_email: asesorEmail,
@@ -760,6 +770,10 @@ export async function downloadTelemetriaExcelTemplate(): Promise<void> {
         return '250';
       case 'Fecha Primer Mtto':
         return '01/09/2026';
+      case 'Distancia Caucasia':
+        return '120';
+      case 'Distancia Villavicencio':
+        return '95';
       case 'Distacia Minima':
         return '10';
       case 'Sede':

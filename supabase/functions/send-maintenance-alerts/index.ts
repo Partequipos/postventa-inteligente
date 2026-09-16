@@ -28,7 +28,7 @@ const corsHeaders = {
 
 const BOGOTA_TZ = 'America/Bogota';
 const TELEMETRIA_SELECT =
-  'id, legacy_id, serie, modelo, marca, titulo, asesor_email, sede, horometro, latitud, longitud, nit, telefono, email, observaciones, tipo_mtto, fecha_primer_mtto, fecha_segundo_mtto, fecha_tercer_mtto, distancia_bogota, distancia_medellin, distancia_barranquilla, distancia_monteria, distancia_cali, distancia_bucaramanga, distancia_ibague, distancia_istmina';
+  'id, legacy_id, serie, modelo, marca, titulo, asesor_email, sede, horometro, latitud, longitud, nit, telefono, email, observaciones, tipo_mtto, fecha_primer_mtto, fecha_segundo_mtto, fecha_tercer_mtto, distancia_bogota, distancia_medellin, distancia_barranquilla, distancia_monteria, distancia_cali, distancia_bucaramanga, distancia_ibague, distancia_istmina, distancia_caucasia, distancia_villavicencio';
 
 function todayBogotaIso(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: BOGOTA_TZ }).format(new Date());

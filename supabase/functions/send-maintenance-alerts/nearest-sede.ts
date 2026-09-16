@@ -8,6 +8,8 @@ const SEDE_DISTANCIAS: ReadonlyArray<{ nombre: string; field: string }> = [
   { nombre: 'Bucaramanga', field: 'distancia_bucaramanga' },
   { nombre: 'Ibagué', field: 'distancia_ibague' },
   { nombre: 'Istmina', field: 'distancia_istmina' },
+  { nombre: 'Caucasia', field: 'distancia_caucasia' },
+  { nombre: 'Villavicencio', field: 'distancia_villavicencio' },
 ];
 
 export function resolveNearestSede(

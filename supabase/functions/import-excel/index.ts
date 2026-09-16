@@ -376,6 +376,8 @@ function mapTelemetria(row: Record<string, string>, createdBy: string) {
     distancia_bucaramanga: num(get('Distancia Bucaramanga')),
     distancia_ibague: num(get('Distancia Ibague', 'Distancia Ibagué')),
     distancia_istmina: num(get('Distancia Istmina')),
+    distancia_caucasia: num(get('Distancia Caucasia', 'Distacia Caucasia', 'Distancia Caucsia')),
+    distancia_villavicencio: num(get('Distancia Villavicencio', 'Distacia Villavicencio')),
     distancia_minima: num(get('Distacia Minima', 'Distancia Minima', 'Distancia Mínima')),
     sede: get('Sede', 'sede') || null,
     asesor_email: asesor2.includes('@') ? asesor2 : null,

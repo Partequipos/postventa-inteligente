@@ -30,6 +30,8 @@ export interface EquipoAlertaRow {
   distancia_bucaramanga?: number | null;
   distancia_ibague?: number | null;
   distancia_istmina?: number | null;
+  distancia_caucasia?: number | null;
+  distancia_villavicencio?: number | null;
 }
 
 export const PARTEQUIPOS_LOGO_URL =
