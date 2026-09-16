@@ -27,6 +27,7 @@ const ACTIVITY_EVENTS = [
 export function useInactivityLogout(): void {
   const router = useRouter();
   const isAuthenticated = useUserStore((s) => s.isAuthenticated);
+  const authReady = useUserStore((s) => s.authReady);
   const logout = useUserStore((s) => s.logout);
   const loggingOutRef = useRef(false);
   const lastTouchRef = useRef(0);
@@ -55,7 +56,7 @@ export function useInactivityLogout(): void {
   }, []);
 
   const checkExpired = useCallback(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !authReady) return;
 
     const last = readLastActivity();
     if (last == null) {
@@ -66,11 +67,13 @@ export function useInactivityLogout(): void {
     if (isInactivityExpired(last)) {
       void performInactivityLogout();
     }
-  }, [isAuthenticated, performInactivityLogout]);
+  }, [isAuthenticated, authReady, performInactivityLogout]);
 
   useEffect(() => {
+    // Durante hidratación no tocar el marcador (evita logout falso al recargar).
+    if (!authReady) return;
+
     if (!isAuthenticated) {
-      clearLastActivity();
       return;
     }
 
@@ -105,5 +108,5 @@ export function useInactivityLogout(): void {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       globalThis.clearInterval(intervalId);
     };
-  }, [isAuthenticated, recordActivity, checkExpired, performInactivityLogout]);
+  }, [isAuthenticated, authReady, recordActivity, checkExpired, performInactivityLogout]);
 }

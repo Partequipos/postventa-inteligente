@@ -9,6 +9,9 @@ import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { AuthGate } from '@/components/auth/auth-gate';
 import { InactivityGuard } from '@/components/auth/inactivity-guard';
 import { purgeStaleUserPersistence, useUserStore } from '@/store';
+import { touchLastActivity } from '@/lib/session-inactivity';
+
+const AUTH_HYDRATE_FALLBACK_MS = 4_000;
 
 function AuthHydrator({ children }: Readonly<{ children: React.ReactNode }>) {
   const setUser = useUserStore((s) => s.setUser);
@@ -19,52 +22,60 @@ function AuthHydrator({ children }: Readonly<{ children: React.ReactNode }>) {
     purgeStaleUserPersistence();
 
     let cancelled = false;
-    let seq = 0;
+    let ready = false;
 
-    const finishAnonymous = () => {
-      if (cancelled) return;
-      clearSession();
+    const finishReady = () => {
+      if (cancelled || ready) return;
+      ready = true;
       setAuthReady(true);
     };
 
-    const applyFromServer = async () => {
-      const mySeq = ++seq;
-
-      if (!isSupabaseConfigured()) {
-        // Modo local/mock: no hay JWT; exigir login explícito.
-        if (!cancelled && mySeq === seq) finishAnonymous();
-        return;
-      }
-
-      try {
-        const sessionUser = await getSessionUser();
-        if (cancelled || mySeq !== seq) return;
-        if (sessionUser) {
-          setUser(sessionUser);
-        } else {
-          finishAnonymous();
-        }
-      } catch {
-        if (!cancelled && mySeq === seq) finishAnonymous();
+    const applyUser = (user: Parameters<typeof setUser>[0] | null) => {
+      if (cancelled) return;
+      if (user) {
+        setUser(user);
+        touchLastActivity();
+      } else {
+        clearSession();
       }
     };
 
-    void applyFromServer();
+    if (!isSupabaseConfigured()) {
+      clearSession();
+      finishReady();
+      return () => {
+        cancelled = true;
+      };
+    }
 
-    const unsubscribe = isSupabaseConfigured()
-      ? subscribeAuthChanges((user) => {
-          seq += 1;
-          if (cancelled) return;
-          if (user) {
-            setUser(user);
-          } else {
-            finishAnonymous();
-          }
-        })
-      : () => undefined;
+    const unsubscribe = subscribeAuthChanges(
+      (user) => {
+        applyUser(user);
+      },
+      () => {
+        finishReady();
+      }
+    );
+
+    // Respaldo si INITIAL_SESSION no dispara (casos raros de cliente)
+    const fallbackId = globalThis.setTimeout(() => {
+      if (cancelled || ready) return;
+      void (async () => {
+        try {
+          const sessionUser = await getSessionUser();
+          if (cancelled || ready) return;
+          applyUser(sessionUser);
+        } catch {
+          if (!cancelled && !ready) clearSession();
+        } finally {
+          finishReady();
+        }
+      })();
+    }, AUTH_HYDRATE_FALLBACK_MS);
 
     return () => {
       cancelled = true;
+      globalThis.clearTimeout(fallbackId);
       unsubscribe();
     };
   }, [setUser, clearSession, setAuthReady]);

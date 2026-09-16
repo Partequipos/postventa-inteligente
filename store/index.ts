@@ -9,6 +9,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { User, UserRole } from "@/lib/mock-data";
 import { signOut as supabaseSignOut } from "@/lib/supabase/auth";
+import { clearLastActivity, touchLastActivity } from "@/lib/session-inactivity";
 
 /** Rol placeholder solo interno; la UI no debe mostrarlo sin sesión. */
 const ANONYMOUS_ROLE: UserRole = "Viewer";
@@ -78,13 +79,15 @@ export const useUserStore = create<UserState>()((set) => ({
   ...LOGGED_OUT_STATE,
   authReady: false,
 
-  setUser: (user) =>
+  setUser: (user) => {
+    touchLastActivity();
     set({
       currentUser: user,
       role: user.role,
       isAuthenticated: true,
       authReady: true,
-    }),
+    });
+  },
 
   clearSession: () => set({ ...LOGGED_OUT_STATE, authReady: true }),
 
@@ -92,8 +95,10 @@ export const useUserStore = create<UserState>()((set) => ({
 
   logout: async () => {
     try {
+      clearLastActivity();
       await supabaseSignOut();
     } finally {
+      clearLastActivity();
       set({ ...LOGGED_OUT_STATE, authReady: true });
     }
   },
@@ -105,6 +110,8 @@ export function purgeStaleUserPersistence(): void {
   try {
     window.sessionStorage.removeItem("partequipos-user");
     window.localStorage.removeItem("partequipos-user");
+    // Migración: la actividad de sesión ahora vive en localStorage
+    window.sessionStorage.removeItem("partequipos-last-activity");
   } catch {
     // ignore quota / private mode
   }

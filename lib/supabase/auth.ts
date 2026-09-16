@@ -165,24 +165,48 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+/**
+ * Restaura el usuario desde el JWT persistido (localStorage).
+ * No borra la sesión ante fallos transitorios de red: intenta refresh primero.
+ */
 export async function getSessionUser(): Promise<User | null> {
   if (!isSupabaseConfigured()) return null;
 
   const supabase = getSupabaseClient();
 
-  // getUser valida el JWT con el servidor; getSession solo lee storage local.
-  const { data: userData, error } = await supabase.auth.getUser();
-  if (error || !userData.user) {
-    const { data: local } = await supabase.auth.getSession();
-    if (local.session) {
-      await supabase.auth.signOut({ scope: 'local' });
+  const { data: sessionData } = await supabase.auth.getSession();
+  let authUser = sessionData.session?.user ?? null;
+
+  if (!authUser) return null;
+
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (!userError && userData.user) {
+    authUser = userData.user;
+  } else {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed.session?.user) {
+      // Sesión inválida / expirada de verdad
+      return null;
     }
-    return null;
+    authUser = refreshed.session.user;
   }
 
-  const user = await fetchProfileAsUser(userData.user.id, userData.user.email ?? '');
+  const user = await fetchProfileAsUser(authUser.id, authUser.email ?? '');
   if (user.isActive === false) {
-    await supabase.auth.signOut({ scope: 'local' });
+    await supabase.auth.signOut();
+    return null;
+  }
+  return user;
+}
+
+async function resolveUserFromSession(
+  userId: string,
+  email: string
+): Promise<User | null> {
+  const user = await fetchProfileAsUser(userId, email);
+  if (user.isActive === false) {
+    const supabase = getSupabaseClient();
+    await supabase.auth.signOut();
     return null;
   }
   return user;
@@ -190,22 +214,55 @@ export async function getSessionUser(): Promise<User | null> {
 
 /** Suscripción a cambios de sesión Supabase (SIGNED_IN / SIGNED_OUT / refresh). */
 export function subscribeAuthChanges(
-  onUser: (user: User | null) => void
+  onUser: (user: User | null) => void,
+  onReady?: () => void
 ): () => void {
   if (!isSupabaseConfigured()) {
+    onReady?.();
     return () => undefined;
   }
 
   const supabase = getSupabaseClient();
+  let initialHandled = false;
+
+  const markReady = () => {
+    if (initialHandled) return;
+    initialHandled = true;
+    onReady?.();
+  };
+
+  const applySessionUser = async (
+    userId: string,
+    email: string,
+    allowRecover: boolean
+  ): Promise<void> => {
+    try {
+      const user = await resolveUserFromSession(userId, email);
+      onUser(user);
+    } catch {
+      if (!allowRecover) return;
+      const recovered = await getSessionUser();
+      onUser(recovered);
+    }
+  };
+
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((event, session) => {
     void (async () => {
-      if (
-        event === 'SIGNED_OUT' ||
-        (event === 'INITIAL_SESSION' && !session?.user)
-      ) {
+      if (event === 'SIGNED_OUT') {
         onUser(null);
+        markReady();
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          await applySessionUser(session.user.id, session.user.email ?? '', true);
+        } else {
+          onUser(null);
+        }
+        markReady();
         return;
       }
 
@@ -217,18 +274,9 @@ export function subscribeAuthChanges(
       if (
         event === 'SIGNED_IN' ||
         event === 'TOKEN_REFRESHED' ||
-        event === 'USER_UPDATED' ||
-        event === 'INITIAL_SESSION'
+        event === 'USER_UPDATED'
       ) {
-        try {
-          const user = await fetchProfileAsUser(
-            session.user.id,
-            session.user.email ?? ''
-          );
-          onUser(user);
-        } catch {
-          onUser(null);
-        }
+        await applySessionUser(session.user.id, session.user.email ?? '', false);
       }
     })();
   });
