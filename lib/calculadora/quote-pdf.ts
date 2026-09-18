@@ -274,16 +274,44 @@ function addActivitiesBlock(
   return tableFinalY(doc, startY + 10);
 }
 
+/** Fluidos: Aceite homologado (ENI), Ref. genuina y SAP — sin aftermarket. */
+const FLUID_HEAD = [
+  'F',
+  'Fluido',
+  'Cant',
+  'Und',
+  'Aceite homologado',
+  'Ref. genuina',
+  'SAP Dispel',
+  'SAP Orig.',
+] as const;
+
+/** Repuestos/Filtros: código + refs aftermarket (Stal / Donaldson / Fleetguard). */
+const PART_HEAD = [
+  'F',
+  'Código / Ref.',
+  'Descripción',
+  'Cant',
+  'Und',
+  'Ref. genuina',
+  'Stal',
+  'Donaldson',
+  'Fleetguard',
+  'SAP Dispel',
+  'SAP Orig.',
+] as const;
+
+const FLUID_EMPTY_ROW = FLUID_HEAD.map((_, i) => (i === 1 ? 'Sin fluidos' : '—'));
+const PART_EMPTY_ROW = PART_HEAD.map((_, i) => (i === 2 ? 'Sin repuestos / filtros' : '—'));
+
 function fluidRefRow(f: PreventiveConsumableLine): string[] {
   return [
     String(f.frecuenciaHoras ?? '—'),
-    truncate(f.item, 36),
+    truncate(f.item, 40),
     String(f.quantity),
     textOrDash(f.unit),
+    refPdf(f.aceiteHomologado),
     refPdf(f.referenciaGenuina),
-    refPdf(f.referenciaStal),
-    refPdf(f.referenciaDonaldson),
-    refPdf(f.referenciaFleetguard),
     refPdf(f.refSapDispel),
     refPdf(f.refSapOriginal),
   ];
@@ -292,43 +320,45 @@ function fluidRefRow(f: PreventiveConsumableLine): string[] {
 function partRefRow(p: PreventivePartLine): string[] {
   return [
     String(p.frecuenciaHoras ?? '—'),
+    truncate(textOrDash(p.sapCode), 22),
     truncate(p.description, 36),
     String(p.quantity),
-    textOrDash(p.unit),
+    textOrDash(p.unit || 'Unidad'),
     refPdf(p.referenciaGenuina),
     refPdf(p.referenciaStal),
     refPdf(p.referenciaDonaldson),
     refPdf(p.referenciaFleetguard),
     refPdf(p.refSapDispel),
-    refPdf(p.refSapOriginal ?? p.sapCode),
+    refPdf(p.refSapOriginal),
   ];
 }
 
-const REF_HEAD = [
-  'F',
-  'Descripción',
-  'Cant',
-  'Und',
-  'Genuina',
-  'Stal',
-  'Donaldson',
-  'Fleetguard',
-  'SAP Dispel',
-  'SAP Orig.',
-] as const;
+function fluidColumnStyles() {
+  return {
+    0: { cellWidth: 10, halign: 'right' as const },
+    1: { cellWidth: 52 },
+    2: { cellWidth: 12, halign: 'right' as const },
+    3: { cellWidth: 12 },
+    4: { cellWidth: 40 },
+    5: { cellWidth: 36 },
+    6: { cellWidth: 36 },
+    7: { cellWidth: 36 },
+  };
+}
 
-function refColumnStyles() {
+function partColumnStyles() {
   return {
     0: { cellWidth: 8, halign: 'right' as const },
-    1: { cellWidth: 48 },
-    2: { cellWidth: 10, halign: 'right' as const },
-    3: { cellWidth: 10 },
-    4: { cellWidth: 24 },
+    1: { cellWidth: 28 },
+    2: { cellWidth: 40 },
+    3: { cellWidth: 10, halign: 'right' as const },
+    4: { cellWidth: 10 },
     5: { cellWidth: 24 },
     6: { cellWidth: 24 },
     7: { cellWidth: 24 },
-    8: { cellWidth: 26 },
-    9: { cellWidth: 26 },
+    8: { cellWidth: 24 },
+    9: { cellWidth: 24 },
+    10: { cellWidth: 24 },
   };
 }
 
@@ -340,14 +370,11 @@ function addFluidsBlock(
 ): number {
   drawMiniTitle(doc, 'Fluidos (referencias)', PAGE_MARGIN, startY, CONTENT_WIDTH);
 
-  const body =
-    quote.fluids.length === 0
-      ? [['—', 'Sin fluidos', '—', '—', '—', '—', '—', '—', '—', '—']]
-      : quote.fluids.map(fluidRefRow);
+  const body = quote.fluids.length === 0 ? [FLUID_EMPTY_ROW] : quote.fluids.map(fluidRefRow);
 
   autoTable(doc, {
     startY: startY + 1.5,
-    head: [Array.from(REF_HEAD)],
+    head: [Array.from(FLUID_HEAD)],
     body,
     styles: compactTableStyles(layout.fontSize, layout.cellPadding),
     headStyles: {
@@ -356,7 +383,7 @@ function addFluidsBlock(
       fontStyle: 'bold',
       fontSize: Math.max(4, layout.fontSize - 0.3),
     },
-    columnStyles: refColumnStyles(),
+    columnStyles: fluidColumnStyles(),
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN, bottom: PAGE_HEIGHT - layout.costStartY },
     pageBreak: 'avoid',
     rowPageBreak: 'avoid',
@@ -372,16 +399,13 @@ function addPartsBlock(
   layout: PdfLayoutMetrics,
   startY: number
 ): number {
-  drawMiniTitle(doc, 'Repuestos (referencias)', PAGE_MARGIN, startY, CONTENT_WIDTH);
+  drawMiniTitle(doc, 'Repuestos / Filtros', PAGE_MARGIN, startY, CONTENT_WIDTH);
 
-  const body =
-    quote.parts.length === 0
-      ? [['—', 'Sin repuestos', '—', '—', '—', '—', '—', '—', '—', '—']]
-      : quote.parts.map(partRefRow);
+  const body = quote.parts.length === 0 ? [PART_EMPTY_ROW] : quote.parts.map(partRefRow);
 
   autoTable(doc, {
     startY: startY + 1.5,
-    head: [Array.from(REF_HEAD)],
+    head: [Array.from(PART_HEAD)],
     body,
     styles: compactTableStyles(layout.fontSize, layout.cellPadding),
     headStyles: {
@@ -390,7 +414,7 @@ function addPartsBlock(
       fontStyle: 'bold',
       fontSize: Math.max(4, layout.fontSize - 0.3),
     },
-    columnStyles: refColumnStyles(),
+    columnStyles: partColumnStyles(),
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN, bottom: PAGE_HEIGHT - layout.costStartY },
     pageBreak: 'avoid',
     rowPageBreak: 'avoid',
@@ -436,7 +460,7 @@ function addFooter(doc: jsPDF): void {
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    'PARTEQUIPOS MAQUINARIA · Referencias genuina / Stal / Donaldson / Fleetguard / SAP · Sin precio SAP · Una página',
+    'PARTEQUIPOS MAQUINARIA · Fluidos: Aceite homologado (ENI) / Ref. genuina / SAP · Repuestos: Stal / Donaldson / Fleetguard · Sin precio SAP · Una página',
     PAGE_MARGIN,
     FOOTER_Y
   );
