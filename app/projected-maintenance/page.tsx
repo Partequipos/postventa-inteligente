@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/table";
 import { KPICard } from "@/components/ui/kpi-card";
 import { AppShell } from "@/components/layout/app-shell";
+import { useUserStore } from "@/store";
 import {
   useTelemetriaEquipos,
   useProyectadosImportHistory,
@@ -1279,6 +1280,8 @@ function DistribucionEquiposSection({
 
 /** --- TAB 1: Dashboard --- */
 function DashboardTab() {
+  const role = useUserStore((s) => s.role);
+  const isViewer = role === "Viewer";
   const [reportFilters, setReportFilters] = usePersistedReportFilters(
     PROJECTED_MAINTENANCE_FILTERS_KEY
   );
@@ -1332,8 +1335,15 @@ function DashboardTab() {
     <div className="space-y-6">
       {equipos.length === 0 && !isLoading && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          No hay registros en telemetría. Use la pestaña <strong>Importar</strong> para cargar
-          la plantilla mensual.
+          No hay registros en telemetría.
+          {isViewer ? (
+            <> Consulte con un administrador o coordinador para la carga de la plantilla mensual.</>
+          ) : (
+            <>
+              {" "}
+              Use la pestaña <strong>Importar</strong> para cargar la plantilla mensual.
+            </>
+          )}
         </div>
       )}
       <ReportFiltersBar
@@ -1566,6 +1576,10 @@ function AutomationTab() {
 // â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function ProjectedMaintenancePage() {
+  const role = useUserStore((s) => s.role);
+  /** Visualizadores: solo Panel. Importar / Automatización para el resto de roles con acceso. */
+  const canSeeImportAutomation = role !== "Viewer";
+
   return (
     <AppShell breadcrumbs={[{ label: "Inicio", href: "/dashboard" }, { label: "Mantenimiento Proyectado" }]}>
     <div className="space-y-6 pt-6">
@@ -1609,31 +1623,39 @@ export default function ProjectedMaintenancePage() {
             <BarChartIcon className="h-3.5 w-3.5 mr-1.5" />
             Panel
           </TabsTrigger>
-          <TabsTrigger
-            value="import"
-            className="data-[state=active]:bg-[#cf1b22] data-[state=active]:text-white data-[state=active]:shadow-sm text-sm px-5"
-          >
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Importar
-          </TabsTrigger>
-          <TabsTrigger
-            value="automation"
-            className="data-[state=active]:bg-[#cf1b22] data-[state=active]:text-white data-[state=active]:shadow-sm text-sm px-5"
-          >
-            <Zap className="h-3.5 w-3.5 mr-1.5" />
-            Automatización
-          </TabsTrigger>
+          {canSeeImportAutomation && (
+            <TabsTrigger
+              value="import"
+              className="data-[state=active]:bg-[#cf1b22] data-[state=active]:text-white data-[state=active]:shadow-sm text-sm px-5"
+            >
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Importar
+            </TabsTrigger>
+          )}
+          {canSeeImportAutomation && (
+            <TabsTrigger
+              value="automation"
+              className="data-[state=active]:bg-[#cf1b22] data-[state=active]:text-white data-[state=active]:shadow-sm text-sm px-5"
+            >
+              <Zap className="h-3.5 w-3.5 mr-1.5" />
+              Automatización
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-0">
           <DashboardTab />
         </TabsContent>
-        <TabsContent value="import" className="mt-0">
-          <ImportTab />
-        </TabsContent>
-        <TabsContent value="automation" className="mt-0">
-          <AutomationTab />
-        </TabsContent>
+        {canSeeImportAutomation && (
+          <TabsContent value="import" className="mt-0">
+            <ImportTab />
+          </TabsContent>
+        )}
+        {canSeeImportAutomation && (
+          <TabsContent value="automation" className="mt-0">
+            <AutomationTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
     </AppShell>
