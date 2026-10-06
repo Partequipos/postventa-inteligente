@@ -74,8 +74,9 @@ function sanitizeFilePart(value: string): string {
     .slice(0, 40);
 }
 
+/** Texto de referencia corto (códigos aftermarket / SAP). */
 function refPdf(value: string | null | undefined): string {
-  return truncate(textOrDash(value), 18);
+  return truncate(textOrDash(value), 22);
 }
 
 async function fetchImageDataUrl(url: string): Promise<string | null> {
@@ -114,8 +115,11 @@ function countDetailRows(quote: PreventiveQuoteResult): number {
   return actRows + fluidRows + partRows + 3;
 }
 
-function resolveLayoutMetrics(quote: PreventiveQuoteResult, fontSize: number): PdfLayoutMetrics {
-  const detailStartY = 30;
+function resolveLayoutMetrics(
+  quote: PreventiveQuoteResult,
+  fontSize: number,
+  detailStartY: number
+): PdfLayoutMetrics {
   const costStartY = PAGE_HEIGHT - COST_BLOCK_HEIGHT - 7;
   const available = costStartY - detailStartY - 4;
   const totalRows = countDetailRows(quote);
@@ -156,7 +160,12 @@ function drawMiniTitle(doc: jsPDF, title: string, x: number, y: number, width: n
   doc.setTextColor(30, 41, 59);
 }
 
-function addHeader(doc: jsPDF, logoDataUrl: string | null, input: QuotePdfInput): void {
+/** Dibuja cabecera (logo + marca/modelo/km/viaje) y retorna Y final para no solapar tablas. */
+function addHeader(
+  doc: JsPdfWithAutoTable,
+  logoDataUrl: string | null,
+  input: QuotePdfInput
+): number {
   const { quote, travelTimeHours } = input;
   const frecuencias = quote.frecuenciasAplicadas.map((f) => `${f}`).join(', ');
 
@@ -215,6 +224,8 @@ function addHeader(doc: jsPDF, logoDataUrl: string | null, input: QuotePdfInput)
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN, top: PAGE_MARGIN },
     pageBreak: 'avoid',
   });
+
+  return tableFinalY(doc, PAGE_MARGIN + 28);
 }
 
 function addActivitiesBlock(
@@ -286,7 +297,7 @@ const FLUID_HEAD = [
   'SAP Orig.',
 ] as const;
 
-/** Repuestos/Filtros: código + refs aftermarket (Stal / Donaldson / Fleetguard). */
+/** Repuestos/Filtros: código + refs aftermarket (sin SAP Dispel). */
 const PART_HEAD = [
   'F',
   'Código / Ref.',
@@ -297,7 +308,6 @@ const PART_HEAD = [
   'Stal',
   'Donaldson',
   'Fleetguard',
-  'SAP Dispel',
   'SAP Orig.',
 ] as const;
 
@@ -307,11 +317,11 @@ const PART_EMPTY_ROW = PART_HEAD.map((_, i) => (i === 2 ? 'Sin repuestos / filtr
 function fluidRefRow(f: PreventiveConsumableLine): string[] {
   return [
     String(f.frecuenciaHoras ?? '—'),
-    truncate(f.item, 40),
+    truncate(f.item, 48),
     String(f.quantity),
     textOrDash(f.unit),
-    refPdf(f.aceiteHomologado),
-    refPdf(f.referenciaGenuina),
+    textOrDash(f.aceiteHomologado),
+    textOrDash(f.referenciaGenuina),
     refPdf(f.refSapDispel),
     refPdf(f.refSapOriginal),
   ];
@@ -321,26 +331,25 @@ function partRefRow(p: PreventivePartLine): string[] {
   return [
     String(p.frecuenciaHoras ?? '—'),
     truncate(textOrDash(p.sapCode), 22),
-    truncate(p.description, 36),
+    truncate(p.description, 40),
     String(p.quantity),
     textOrDash(p.unit || 'Unidad'),
     refPdf(p.referenciaGenuina),
     refPdf(p.referenciaStal),
     refPdf(p.referenciaDonaldson),
     refPdf(p.referenciaFleetguard),
-    refPdf(p.refSapDispel),
     refPdf(p.refSapOriginal),
   ];
 }
 
 function fluidColumnStyles() {
   return {
-    0: { cellWidth: 10, halign: 'right' as const },
-    1: { cellWidth: 52 },
-    2: { cellWidth: 12, halign: 'right' as const },
-    3: { cellWidth: 12 },
-    4: { cellWidth: 40 },
-    5: { cellWidth: 36 },
+    0: { cellWidth: 8, halign: 'right' as const },
+    1: { cellWidth: 42 },
+    2: { cellWidth: 10, halign: 'right' as const },
+    3: { cellWidth: 10 },
+    4: { cellWidth: 68 },
+    5: { cellWidth: 62 },
     6: { cellWidth: 36 },
     7: { cellWidth: 36 },
   };
@@ -349,16 +358,15 @@ function fluidColumnStyles() {
 function partColumnStyles() {
   return {
     0: { cellWidth: 8, halign: 'right' as const },
-    1: { cellWidth: 28 },
-    2: { cellWidth: 40 },
+    1: { cellWidth: 30 },
+    2: { cellWidth: 48 },
     3: { cellWidth: 10, halign: 'right' as const },
     4: { cellWidth: 10 },
-    5: { cellWidth: 24 },
-    6: { cellWidth: 24 },
-    7: { cellWidth: 24 },
-    8: { cellWidth: 24 },
-    9: { cellWidth: 24 },
-    10: { cellWidth: 24 },
+    5: { cellWidth: 28 },
+    6: { cellWidth: 28 },
+    7: { cellWidth: 28 },
+    8: { cellWidth: 28 },
+    9: { cellWidth: 28 },
   };
 }
 
@@ -466,15 +474,18 @@ function addFooter(doc: jsPDF): void {
   );
 }
 
+/** Espacio mínimo entre cabecera (Km / Viaje) y bloque Actividades. */
+const HEADER_TO_TABLES_GAP_MM = 5;
+
 function renderQuotePdf(
   doc: JsPdfWithAutoTable,
   input: QuotePdfInput,
   logoDataUrl: string | null,
   fontSize: number
 ): void {
-  const layout = resolveLayoutMetrics(input.quote, fontSize);
-
-  addHeader(doc, logoDataUrl, input);
+  const headerEndY = addHeader(doc, logoDataUrl, input);
+  const detailStartY = headerEndY + HEADER_TO_TABLES_GAP_MM;
+  const layout = resolveLayoutMetrics(input.quote, fontSize, detailStartY);
 
   const afterActivities = addActivitiesBlock(doc, input.quote, layout);
   const afterFluids = addFluidsBlock(doc, input.quote, layout, afterActivities + 2.5);
