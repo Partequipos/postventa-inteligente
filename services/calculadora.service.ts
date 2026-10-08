@@ -114,34 +114,64 @@ export async function fetchMarcas(): Promise<string[]> {
 }
 
 export async function fetchModelos(marca: string): Promise<string[]> {
-  if (!marca || marca === 'all') return [];
+  const scopedMarca = marca?.trim() && marca !== 'all' ? marca.trim() : '';
 
   if (!isSupabaseConfigured()) {
-    return getMockModelos(marca);
+    if (!scopedMarca) {
+      return sortEs(
+        Array.from(
+          new Set(
+            mockStore
+              .filter((t) => t.activo)
+              .map((t) => t.modelo.trim())
+              .filter(Boolean)
+          )
+        )
+      );
+    }
+    return getMockModelos(scopedMarca);
   }
 
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('v_temparios_modelos')
-    .select('modelo')
-    .eq('marca', marca);
+  const fromView = new Set<string>();
+  const viewPageSize = 1000;
+  let viewFrom = 0;
+  let viewFailed = false;
+  for (;;) {
+    let viewQuery = supabase.from('v_temparios_modelos').select('modelo');
+    if (scopedMarca) {
+      viewQuery = viewQuery.eq('marca', scopedMarca);
+    }
+    const { data, error } = await viewQuery.range(viewFrom, viewFrom + viewPageSize - 1);
+    if (error) {
+      viewFailed = true;
+      break;
+    }
+    if (!data?.length) break;
+    data.forEach((row) => {
+      const modelo = String(row.modelo ?? '').trim();
+      if (modelo) fromView.add(modelo);
+    });
+    if (data.length < viewPageSize) break;
+    viewFrom += viewPageSize;
+  }
 
-  if (!error && data) {
-    return sortEs(
-      Array.from(new Set(data.map((r) => String(r.modelo).trim()).filter(Boolean)))
-    );
+  if (!viewFailed) {
+    return sortEs(Array.from(fromView));
   }
 
   const modelos = new Set<string>();
   const pageSize = 1000;
   let from = 0;
   for (;;) {
-    const { data: page, error: pageErr } = await supabase
+    let pageQuery = supabase
       .from('temparios_mantenimiento')
       .select('modelo')
-      .eq('activo', true)
-      .eq('marca', marca)
-      .range(from, from + pageSize - 1);
+      .eq('activo', true);
+    if (scopedMarca) {
+      pageQuery = pageQuery.eq('marca', scopedMarca);
+    }
+    const { data: page, error: pageErr } = await pageQuery.range(from, from + pageSize - 1);
 
     if (pageErr) {
       return getMockModelos(marca);
@@ -280,7 +310,7 @@ export async function fetchTempariosAdmin(
   query: TempariosAdminQuery = {}
 ): Promise<TempariosAdminResult> {
   const page = Math.max(1, query.page ?? 1);
-  const pageSize = Math.min(100, Math.max(10, query.pageSize ?? 20));
+  const pageSize = Math.min(1000, Math.max(10, query.pageSize ?? 20));
 
   if (!isSupabaseConfigured()) {
     const filtered = filterMockAdmin(query);
@@ -336,6 +366,25 @@ export async function fetchTempariosAdmin(
   };
 }
 
+/** Todos los temparios que coinciden con el filtro de administración (sin paginar la UI). */
+export async function fetchAllTempariosAdmin(
+  query: Omit<TempariosAdminQuery, 'page' | 'pageSize'> = {}
+): Promise<TemparioMantenimiento[]> {
+  const pageSize = 1000;
+  const collected: TemparioMantenimiento[] = [];
+  let page = 1;
+
+  for (;;) {
+    const result = await fetchTempariosAdmin({ ...query, page, pageSize });
+    collected.push(...result.rows);
+    if (result.rows.length === 0 || collected.length >= result.total) break;
+    page += 1;
+    if (page > 40) break;
+  }
+
+  return collected;
+}
+
 export async function updateTempario(
   id: string,
   patch: TemparioUpdatePatch,
@@ -371,6 +420,49 @@ export async function deactivateTempario(
   updatedBy = 'admin'
 ): Promise<void> {
   await updateTempario(id, { activo: false }, updatedBy);
+}
+
+const BULK_UPDATE_CHUNK = 80;
+
+/** Aplica el mismo parche a varios temparios. Solo deben enviarse campos a cambiar. */
+export async function updateTempariosBulk(
+  ids: string[],
+  patch: TemparioUpdatePatch,
+  updatedBy = 'admin'
+): Promise<number> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (uniqueIds.length === 0) return 0;
+
+  const payload = {
+    ...patch,
+    updated_by: updatedBy,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!isSupabaseConfigured()) {
+    let updated = 0;
+    for (const id of uniqueIds) {
+      const idx = mockStore.findIndex((t) => t.id === id);
+      if (idx < 0) continue;
+      mockStore[idx] = { ...mockStore[idx], ...payload };
+      updated += 1;
+    }
+    return updated;
+  }
+
+  const supabase = getSupabaseClient();
+  let updated = 0;
+  for (let offset = 0; offset < uniqueIds.length; offset += BULK_UPDATE_CHUNK) {
+    const chunk = uniqueIds.slice(offset, offset + BULK_UPDATE_CHUNK);
+    const { data, error } = await supabase
+      .from('temparios_mantenimiento')
+      .update(payload)
+      .in('id', chunk)
+      .select('id');
+    if (error) throw new Error(error.message);
+    updated += data?.length ?? 0;
+  }
+  return updated;
 }
 
 export async function calculatePreventiveMaintenance(

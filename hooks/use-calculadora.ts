@@ -7,6 +7,7 @@ import {
   registerTemparioImport,
   fetchTempariosAdmin,
   updateTempario,
+  updateTempariosBulk,
   deactivateTempario,
   type TempariosAdminQuery,
 } from '@/services/calculadora.service';
@@ -29,6 +30,16 @@ export function useCalculadoraModelos(marca: string) {
     queryKey: ['calculadora', 'modelos', marca],
     queryFn: () => fetchModelos(marca),
     enabled: Boolean(marca) && marca !== 'all',
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Modelos del filtro de administración: todos, o solo los de la marca elegida. */
+export function useTemparioModelosFiltro(marca: string) {
+  const scoped = Boolean(marca) && marca !== 'all';
+  return useQuery({
+    queryKey: ['calculadora', 'modelos-filtro', scoped ? marca : 'all'],
+    queryFn: () => fetchModelos(scoped ? marca : ''),
     staleTime: 60 * 1000,
   });
 }
@@ -78,6 +89,24 @@ export function useUpdateTempario() {
       patch: TemparioUpdatePatch;
       updatedBy?: string;
     }) => updateTempario(id, patch, updatedBy),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['calculadora'] });
+    },
+  });
+}
+
+export function useUpdateTempariosBulk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      ids,
+      patch,
+      updatedBy,
+    }: {
+      ids: string[];
+      patch: TemparioUpdatePatch;
+      updatedBy?: string;
+    }) => updateTempariosBulk(ids, patch, updatedBy),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['calculadora'] });
     },

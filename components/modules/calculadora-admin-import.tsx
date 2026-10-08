@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Database,
+  Download,
   Pencil,
   Search,
   Trash2,
@@ -20,11 +21,13 @@ import {
   useUpdateTempario,
   useDeactivateTempario,
   useCalculadoraMarcas,
-  useCalculadoraModelos,
+  useTemparioModelosFiltro,
   useCalculadoraTipos,
+  useUpdateTempariosBulk,
 } from '@/hooks/use-calculadora';
 import { useUserStore } from '@/store';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -56,12 +59,19 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import type { TemparioMantenimiento, TemparioTipoItem, MaintenanceFrequencyHours } from '@/types/database';
+import type {
+  TemparioMantenimiento,
+  TemparioTipoItem,
+  TemparioUpdatePatch,
+  MaintenanceFrequencyHours,
+} from '@/types/database';
 import { modelo2ToTipoCatalogo } from '@/lib/calculadora/tempario-classify';
 import {
   TEMPARIO_EXCEL_COLUMNS,
   downloadTemparioExcelTemplate,
+  downloadTempariosExcel,
 } from '@/lib/calculadora/tempario-template';
+import { fetchAllTempariosAdmin } from '@/services/calculadora.service';
 
 const TIPOS_ITEM: TemparioTipoItem[] = [
   'Repuesto',
@@ -73,6 +83,7 @@ const TIPOS_ITEM: TemparioTipoItem[] = [
 ];
 const FRECUENCIAS: MaintenanceFrequencyHours[] = [250, 1000, 2000, 4000, 5000];
 const PAGE_SIZE = 15;
+const BULK_KEEP = '__keep__';
 
 type EditForm = {
   marca: string;
@@ -129,6 +140,112 @@ function formatDate(value?: string | null): string {
   return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+type BulkForm = {
+  marca: string;
+  linea: string;
+  modelo: string;
+  tipo_item: string;
+  unidad_medida: string;
+  cantidad: string;
+  frecuencia_horas: string;
+  aceite_homologado: string;
+  referencia_genuina: string;
+  ref_sap_dispel: string;
+  ref_sap_original: string;
+  referencia_stal: string;
+  referencia_fleetguard: string;
+  referencia_donaldson: string;
+  tiempo_horas: string;
+  procedimiento: string;
+  avisos_claves: string;
+  precio_unitario: string;
+};
+
+function emptyBulkForm(): BulkForm {
+  return {
+    marca: '',
+    linea: '',
+    modelo: '',
+    tipo_item: BULK_KEEP,
+    unidad_medida: '',
+    cantidad: '',
+    frecuencia_horas: BULK_KEEP,
+    aceite_homologado: '',
+    referencia_genuina: '',
+    ref_sap_dispel: '',
+    ref_sap_original: '',
+    referencia_stal: '',
+    referencia_fleetguard: '',
+    referencia_donaldson: '',
+    tiempo_horas: '',
+    procedimiento: '',
+    avisos_claves: '',
+    precio_unitario: '',
+  };
+}
+
+function assignText(
+  patch: TemparioUpdatePatch,
+  key:
+    | 'marca'
+    | 'linea'
+    | 'modelo'
+    | 'unidad_medida'
+    | 'aceite_homologado'
+    | 'referencia_genuina'
+    | 'ref_sap_dispel'
+    | 'ref_sap_original'
+    | 'referencia_stal'
+    | 'referencia_fleetguard'
+    | 'referencia_donaldson'
+    | 'procedimiento'
+    | 'avisos_claves',
+  value: string
+): void {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  patch[key] = trimmed;
+}
+
+function buildBulkPatch(form: BulkForm): TemparioUpdatePatch | 'invalid-freq' | null {
+  const patch: TemparioUpdatePatch = {};
+  assignText(patch, 'marca', form.marca);
+  assignText(patch, 'linea', form.linea);
+  assignText(patch, 'modelo', form.modelo);
+  assignText(patch, 'unidad_medida', form.unidad_medida);
+  assignText(patch, 'aceite_homologado', form.aceite_homologado);
+  assignText(patch, 'referencia_genuina', form.referencia_genuina);
+  assignText(patch, 'ref_sap_dispel', form.ref_sap_dispel);
+  assignText(patch, 'ref_sap_original', form.ref_sap_original);
+  assignText(patch, 'referencia_stal', form.referencia_stal);
+  assignText(patch, 'referencia_fleetguard', form.referencia_fleetguard);
+  assignText(patch, 'referencia_donaldson', form.referencia_donaldson);
+  assignText(patch, 'procedimiento', form.procedimiento);
+  assignText(patch, 'avisos_claves', form.avisos_claves);
+
+  if (form.tipo_item !== BULK_KEEP) {
+    const tipo = form.tipo_item as TemparioTipoItem;
+    patch.tipo_item = tipo;
+    patch.tipo_catalogo = modelo2ToTipoCatalogo(tipo);
+  }
+  if (form.cantidad.trim()) {
+    patch.cantidad = Number(form.cantidad);
+  }
+  if (form.tiempo_horas.trim()) {
+    patch.tiempo_horas = Number(form.tiempo_horas);
+  }
+  if (form.precio_unitario.trim()) {
+    patch.precio_unitario = Number(form.precio_unitario);
+  }
+  if (form.frecuencia_horas !== BULK_KEEP) {
+    const freq = Number(form.frecuencia_horas) as MaintenanceFrequencyHours;
+    if (!FRECUENCIAS.includes(freq)) return 'invalid-freq';
+    patch.frecuencia_horas = freq;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 export function CalculadoraAdminImport() {
   const { currentUser } = useUserStore();
   const updatedBy = currentUser?.email ?? currentUser?.name ?? 'Administrator';
@@ -142,13 +259,18 @@ export function CalculadoraAdminImport() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<TemparioMantenimiento | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkForm, setBulkForm] = useState<BulkForm>(emptyBulkForm);
+  const [exporting, setExporting] = useState(false);
 
   const importMutation = useTemparioImport();
   const updateMutation = useUpdateTempario();
+  const bulkMutation = useUpdateTempariosBulk();
   const deactivateMutation = useDeactivateTempario();
   const { data: marcasData } = useCalculadoraMarcas();
   const marcas: string[] = marcasData ?? [];
-  const { data: modelosData } = useCalculadoraModelos(marca === 'all' ? '' : marca);
+  const { data: modelosData } = useTemparioModelosFiltro(marca);
   const modelos: string[] = modelosData ?? [];
   const { data: tiposData } = useCalculadoraTipos();
   const tipos: string[] = tiposData ?? [];
@@ -170,6 +292,25 @@ export function CalculadoraAdminImport() {
   const rows: TemparioMantenimiento[] = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageIds = rows.map((row) => row.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
+  const clearSelection = () => setSelectedIds([]);
+
+  const toggleRow = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) return prev.includes(id) ? prev : [...prev, id];
+      return prev.filter((item) => item !== id);
+    });
+  };
+
+  const togglePage = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, ...pageIds]));
+      const drop = new Set(pageIds);
+      return prev.filter((id) => !drop.has(id));
+    });
+  };
 
   const openEdit = (row: TemparioMantenimiento) => {
     setEditing(row);
@@ -238,9 +379,74 @@ export function CalculadoraAdminImport() {
     if (!ok) return;
     try {
       await deactivateMutation.mutateAsync({ id: row.id, updatedBy });
+      setSelectedIds((prev) => prev.filter((id) => id !== row.id));
       toast.success('Registro desactivado');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo desactivar');
+    }
+  };
+
+  const openBulk = () => {
+    if (selectedIds.length === 0) {
+      toast.error('Seleccione al menos un registro de la tabla');
+      return;
+    }
+    setBulkForm(emptyBulkForm());
+    setBulkOpen(true);
+  };
+
+  const handleBulkSave = async () => {
+    const patch = buildBulkPatch(bulkForm);
+    if (patch === 'invalid-freq') {
+      toast.error('Frecuencia inválida');
+      return;
+    }
+    if (!patch) {
+      toast.error('Complete al menos un campo para aplicar a los registros seleccionados');
+      return;
+    }
+    try {
+      const updated = await bulkMutation.mutateAsync({
+        ids: selectedIds,
+        patch,
+        updatedBy,
+      });
+      toast.success(
+        `${updated.toLocaleString('es-CO')} registro(s) actualizados`
+      );
+      setBulkOpen(false);
+      clearSelection();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo actualizar la selección');
+    }
+  };
+
+  const setBulkField = <K extends keyof BulkForm>(key: K, value: BulkForm[K]) => {
+    setBulkForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const exported = await fetchAllTempariosAdmin({
+        marca,
+        modelo,
+        tipo,
+        search,
+        includeInactive: false,
+      });
+      if (exported.length === 0) {
+        toast.error('No hay registros para descargar con los filtros actuales');
+        return;
+      }
+      await downloadTempariosExcel(exported);
+      toast.success(
+        `${exported.length.toLocaleString('es-CO')} registro(s) descargados en formato de plantilla`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo descargar el Excel');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -329,21 +535,27 @@ export function CalculadoraAdminImport() {
                     {total}
                   </Badge>
                 </CardTitle>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          setSearch(searchInput.trim());
-                          setPage(1);
-                        }
-                      }}
-                      placeholder="Ítem, modelo o ref…"
-                      className="h-8 pl-8 w-52 text-sm"
-                    />
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Buscar
+                    </span>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setSearch(searchInput.trim());
+                            setPage(1);
+                            clearSelection();
+                          }
+                        }}
+                        placeholder="Ítem, modelo o ref…"
+                        className="h-8 pl-8 w-52 text-sm"
+                      />
+                    </div>
                   </div>
                   <Button
                     type="button"
@@ -353,69 +565,71 @@ export function CalculadoraAdminImport() {
                     onClick={() => {
                       setSearch(searchInput.trim());
                       setPage(1);
+                      clearSelection();
                     }}
                   >
                     Buscar
                   </Button>
-                  <Select
+                  <FilterSelect
+                    label="Marca"
                     value={marca}
-                    onValueChange={(v) => {
+                    onChange={(v) => {
                       setMarca(v);
                       setModelo('all');
                       setPage(1);
+                      clearSelection();
                     }}
-                  >
-                    <SelectTrigger className="h-8 w-36 text-sm">
-                      <SelectValue placeholder="Marca" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      {marcas.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
+                    allLabel="Todas"
+                    options={marcas}
+                  />
+                  <FilterSelect
+                    label="Modelo"
                     value={modelo}
-                    onValueChange={(v) => {
+                    onChange={(v) => {
                       setModelo(v);
                       setPage(1);
+                      clearSelection();
                     }}
-                    disabled={marca === 'all'}
-                  >
-                    <SelectTrigger className="h-8 w-36 text-sm">
-                      <SelectValue placeholder="Modelo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {modelos.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
+                    allLabel="Todos"
+                    options={modelos}
+                  />
+                  <FilterSelect
+                    label="Tipo ítem (Modelo2)"
                     value={tipo}
-                    onValueChange={(v) => {
+                    onChange={(v) => {
                       setTipo(v);
                       setPage(1);
+                      clearSelection();
                     }}
+                    allLabel="Todos los tipos"
+                    options={tipos}
+                    widthClass="w-44"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    disabled={exporting}
+                    title="Descarga todos los registros, o solo los del filtro aplicado, en la plantilla Excel"
+                    onClick={() => void handleExportExcel()}
                   >
-                    <SelectTrigger className="h-8 w-36 text-sm">
-                      <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los tipos</SelectItem>
-                      {tipos.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {exporting ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                    Descargar Excel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 bg-[#cf1b22] hover:bg-[#a51519] text-white"
+                    disabled={selectedIds.length === 0}
+                    onClick={openBulk}
+                  >
+                    Editar seleccionados ({selectedIds.length})
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -437,6 +651,14 @@ export function CalculadoraAdminImport() {
                 <Table noScrollWrapper className="w-max min-w-[1100px]">
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="w-10 pl-4">
+                        <Checkbox
+                          checked={allPageSelected}
+                          onCheckedChange={(value) => togglePage(value === true)}
+                          aria-label="Seleccionar página"
+                          disabled={rows.length === 0}
+                        />
+                      </TableHead>
                       <TableHead className="text-xs">ID</TableHead>
                       <TableHead className="text-xs">Marca</TableHead>
                       <TableHead className="text-xs">Línea</TableHead>
@@ -455,7 +677,7 @@ export function CalculadoraAdminImport() {
                     {isLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <TableRow key={`sk-${i}`}>
-                          <TableCell colSpan={12}>
+                          <TableCell colSpan={13}>
                             <Skeleton className="h-6 w-full" />
                           </TableCell>
                         </TableRow>
@@ -463,7 +685,7 @@ export function CalculadoraAdminImport() {
                     ) : rows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={12}
+                          colSpan={13}
                           className="text-center text-sm text-muted-foreground py-10"
                         >
                           No hay temparios con los filtros actuales. Importe un Excel o ajuste la
@@ -472,7 +694,14 @@ export function CalculadoraAdminImport() {
                       </TableRow>
                     ) : (
                       rows.map((row) => (
-                        <TableRow key={row.id}>
+                        <TableRow key={row.id} data-state={selectedIds.includes(row.id) ? 'selected' : undefined}>
+                          <TableCell className="pl-4">
+                            <Checkbox
+                              checked={selectedIds.includes(row.id)}
+                              onCheckedChange={(value) => toggleRow(row.id, value === true)}
+                              aria-label={`Seleccionar ${row.item}`}
+                            />
+                          </TableCell>
                           <TableCell className="text-xs font-mono text-muted-foreground">
                             {row.legacy_id ?? row.id.slice(0, 8)}
                           </TableCell>
@@ -739,6 +968,207 @@ export function CalculadoraAdminImport() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar {selectedIds.length} registro(s)</DialogTitle>
+            <DialogDescription>
+              Solo se actualizan los campos que complete. Los vacíos y “Sin cambio” se conservan en
+              cada tempario.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+            <Field label="Marca">
+              <Input value={bulkForm.marca} onChange={(e) => setBulkField('marca', e.target.value)} />
+            </Field>
+            <Field label="Línea">
+              <Input value={bulkForm.linea} onChange={(e) => setBulkField('linea', e.target.value)} />
+            </Field>
+            <Field label="Modelo">
+              <Input value={bulkForm.modelo} onChange={(e) => setBulkField('modelo', e.target.value)} />
+            </Field>
+            <Field label="Tipo ítem (Modelo2)">
+              <Select value={bulkForm.tipo_item} onValueChange={(v) => setBulkField('tipo_item', v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BULK_KEEP}>Sin cambio</SelectItem>
+                  {TIPOS_ITEM.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Unidad de medida">
+              <Input
+                value={bulkForm.unidad_medida}
+                onChange={(e) => setBulkField('unidad_medida', e.target.value)}
+              />
+            </Field>
+            <Field label="Cantidad">
+              <Input
+                type="number"
+                min={0}
+                step="0.001"
+                value={bulkForm.cantidad}
+                onChange={(e) => setBulkField('cantidad', e.target.value)}
+              />
+            </Field>
+            <Field label="Frecuencia (horas)">
+              <Select
+                value={bulkForm.frecuencia_horas}
+                onValueChange={(v) => setBulkField('frecuencia_horas', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BULK_KEEP}>Sin cambio</SelectItem>
+                  {FRECUENCIAS.map((f) => (
+                    <SelectItem key={f} value={String(f)}>
+                      {f} h
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Tiempo (horas)">
+              <Input
+                type="number"
+                min={0}
+                step="0.1"
+                value={bulkForm.tiempo_horas}
+                onChange={(e) => setBulkField('tiempo_horas', e.target.value)}
+              />
+            </Field>
+            <Field label="Aceite homologado">
+              <Input
+                value={bulkForm.aceite_homologado}
+                onChange={(e) => setBulkField('aceite_homologado', e.target.value)}
+              />
+            </Field>
+            <Field label="Referencia genuina">
+              <Input
+                value={bulkForm.referencia_genuina}
+                onChange={(e) => setBulkField('referencia_genuina', e.target.value)}
+              />
+            </Field>
+            <Field label="REF SAP DISPEL">
+              <Input
+                value={bulkForm.ref_sap_dispel}
+                onChange={(e) => setBulkField('ref_sap_dispel', e.target.value)}
+              />
+            </Field>
+            <Field label="REF SAP ORIGINAL">
+              <Input
+                value={bulkForm.ref_sap_original}
+                onChange={(e) => setBulkField('ref_sap_original', e.target.value)}
+              />
+            </Field>
+            <Field label="Referencia Stal">
+              <Input
+                value={bulkForm.referencia_stal}
+                onChange={(e) => setBulkField('referencia_stal', e.target.value)}
+              />
+            </Field>
+            <Field label="Referencia Fleetguard">
+              <Input
+                value={bulkForm.referencia_fleetguard}
+                onChange={(e) => setBulkField('referencia_fleetguard', e.target.value)}
+              />
+            </Field>
+            <Field label="Referencia Donaldson">
+              <Input
+                value={bulkForm.referencia_donaldson}
+                onChange={(e) => setBulkField('referencia_donaldson', e.target.value)}
+              />
+            </Field>
+            <Field label="Precio unitario">
+              <Input
+                type="number"
+                min={0}
+                value={bulkForm.precio_unitario}
+                onChange={(e) => setBulkField('precio_unitario', e.target.value)}
+              />
+            </Field>
+            <Field label="Procedimiento" className="sm:col-span-2">
+              <Textarea
+                rows={2}
+                value={bulkForm.procedimiento}
+                onChange={(e) => setBulkField('procedimiento', e.target.value)}
+              />
+            </Field>
+            <Field label="Avisos claves" className="sm:col-span-2">
+              <Textarea
+                rows={2}
+                value={bulkForm.avisos_claves}
+                onChange={(e) => setBulkField('avisos_claves', e.target.value)}
+              />
+            </Field>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setBulkOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#cf1b22] hover:bg-[#a51519] text-white"
+              onClick={() => void handleBulkSave()}
+              disabled={bulkMutation.isPending}
+            >
+              {bulkMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando…
+                </>
+              ) : (
+                'Aplicar a seleccionados'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  allLabel,
+  options,
+  widthClass = 'w-36',
+}: Readonly<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  allLabel: string;
+  options: string[];
+  widthClass?: string;
+}>) {
+  return (
+    <div className="space-y-1">
+      <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className={`h-8 ${widthClass} text-sm`}>
+          <SelectValue placeholder={label} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{allLabel}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
