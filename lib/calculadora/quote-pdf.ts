@@ -238,16 +238,17 @@ function addActivitiesBlock(
 
   const body =
     quote.activities.length === 0
-      ? [['—', 'Sin actividades para esta frecuencia', '—', '—']]
+      ? [['—', 'Sin actividades para esta frecuencia', '—', '—', '—']]
       : [
           ...quote.activities.map((act) => [
             String(act.frecuenciaHoras ?? '—'),
-            truncate(act.activity, 80),
+            truncate(act.activity, 48),
+            (act.observaciones ?? '').trim() || '—',
             act.laborHours.toFixed(1),
             formatCOP(act.subtotal),
           ]),
           [
-            { content: 'Total MO', colSpan: 2, styles: { fontStyle: 'bold' as const } },
+            { content: 'Total MO', colSpan: 3, styles: { fontStyle: 'bold' as const } },
             {
               content: quote.laborHoursTotal.toFixed(1),
               styles: { fontStyle: 'bold' as const, halign: 'right' as const },
@@ -261,7 +262,7 @@ function addActivitiesBlock(
 
   autoTable(doc, {
     startY: startY + 1.5,
-    head: [['F', 'Actividad', 'h', 'MO']],
+    head: [['F', 'Actividad', 'Observaciones', 'h', 'MO']],
     body,
     styles: compactTableStyles(layout.fontSize, layout.cellPadding),
     headStyles: {
@@ -272,9 +273,10 @@ function addActivitiesBlock(
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'right' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 12, halign: 'right' },
-      3: { cellWidth: 28, halign: 'right' },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 12, halign: 'right' },
+      4: { cellWidth: 28, halign: 'right' },
     },
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN, bottom: PAGE_HEIGHT - layout.costStartY },
     pageBreak: 'avoid',

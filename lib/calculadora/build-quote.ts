@@ -168,6 +168,7 @@ export function buildPreventiveQuote(
       marca: t.marca,
       modelo: t.modelo,
       codigoSamm: resolveCodigoSamm(t),
+      observaciones: (t.avisos_claves ?? '').trim(),
     };
   });
 

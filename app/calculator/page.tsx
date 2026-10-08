@@ -713,6 +713,7 @@ export default function CalculatorPage() {
                                   <TableHead>Marca</TableHead>
                                   <TableHead>Modelo</TableHead>
                                   <TableHead>Actividad</TableHead>
+                                  <TableHead>Observaciones</TableHead>
                                   <TableHead>Código SAMM</TableHead>
                                   <TableHead className="text-right">Tiempo (h)</TableHead>
                                   <TableHead className="text-right">Mano de obra</TableHead>
@@ -733,6 +734,9 @@ export default function CalculatorPage() {
                                     <TableCell className="font-medium text-sm">
                                       {act.activity}
                               </TableCell>
+                                    <TableCell className="text-sm max-w-[16rem] whitespace-normal">
+                                      {act.observaciones?.trim() || '—'}
+                                    </TableCell>
                                     <TableCell>
                                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
                                         {act.codigoSamm || '—'}
@@ -747,7 +751,7 @@ export default function CalculatorPage() {
                                   </TableRow>
                                 ))}
                                 <TableRow className="bg-muted/30">
-                                  <TableCell colSpan={5} className="font-semibold text-sm">
+                                  <TableCell colSpan={6} className="font-semibold text-sm">
                                     Total mano de obra
                                     <span className="ml-2 font-normal text-muted-foreground">
                                       (Sum tiempo × {formatCOP(result.laborRate)}/h)

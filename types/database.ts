@@ -83,6 +83,8 @@ export interface PreventiveActivityLine {
   modelo?: string;
   /** Código SAMM / referencia de catálogo */
   codigoSamm?: string;
+  /** Excel Observaciones → avisos_claves */
+  observaciones?: string;
 }
 
 export interface PreventiveConsumableLine {
