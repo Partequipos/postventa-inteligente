@@ -61,6 +61,8 @@ import { pickLatestTelemetriaPerSerie } from '@/services/projected-maintenance.s
 import {
   getFrecuenciasPorHorometro,
   FRECUENCIA_LABELS,
+  PRIMERAS_FRECUENCIAS,
+  PRIMERAS_LABELS,
   getHorometroOptions,
   HOROMETRO_MAX,
   HOROMETRO_MIN,
@@ -69,7 +71,7 @@ import {
 import { SectionFrame } from '@/components/ui/section-frame';
 import { downloadPreventiveQuotePdf } from '@/lib/calculadora/quote-pdf';
 import { normalizeEquipKey } from '@/lib/calculadora/build-quote';
-import type { TelemetriaEquipo, PreventiveQuoteResult } from '@/types/database';
+import type { TelemetriaEquipo, PreventiveQuoteResult, PrimerasHoras } from '@/types/database';
 
 const HOROMETRO_OPTIONS = getHorometroOptions();
 
@@ -182,6 +184,7 @@ export default function CalculatorPage() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<TelemetriaEquipo | null>(null);
   const [machineSheetOpen, setMachineSheetOpen] = useState(false);
+  const [primerasHoras, setPrimerasHoras] = useState<PrimerasHoras | 'horometro'>('horometro');
 
   const {
     register,
@@ -207,7 +210,10 @@ export default function CalculatorPage() {
   const hourMeter = watch('hourMeter');
   const travelTime = watch('travelTime');
   const { data: modelos = [] } = useCalculadoraModelos(selectedBrand);
-  const frecuenciasPreview = hourMeter > 0 ? getFrecuenciasPorHorometro(hourMeter) : [];
+  const soloPrimeras = primerasHoras !== 'horometro';
+  const frecuenciasPreview = soloPrimeras
+    ? [primerasHoras]
+    : getFrecuenciasPorHorometro(hourMeter > 0 ? hourMeter : 0);
 
   const activeTelemetria = useMemo(
     () => telemetria.filter(isActiveTelemetria),
@@ -243,6 +249,7 @@ export default function CalculatorPage() {
         horometro: values.hourMeter,
         kmTrayecto: values.kilometers,
         horasTrayecto: values.travelTime,
+        frecuenciaPrimeras: primerasHoras === 'horometro' ? null : primerasHoras,
       });
       setResult(quote);
     } catch (err) {
@@ -256,6 +263,7 @@ export default function CalculatorPage() {
     reset();
     setResult(null);
     setSelectedMachine(null);
+    setPrimerasHoras('horometro');
   };
 
   const handleSelectMachine = (machine: TelemetriaEquipo) => {
@@ -396,12 +404,21 @@ export default function CalculatorPage() {
               </Label>
               {frecuenciasPreview.map((f) => (
                 <Badge
-                  key={f}
+                  key={`${primerasHoras}-${f}`}
                   variant="outline"
-                  title={FRECUENCIA_LABELS[f]}
+                  title={
+                    primerasHoras === 'horometro'
+                      ? FRECUENCIA_LABELS[f as 250 | 1000 | 2000 | 4000 | 5000]
+                      : PRIMERAS_LABELS[f as PrimerasHoras]
+                  }
                   className="h-4 px-1.5 text-[9px] font-medium leading-none border-[#cf1b22]/30 text-[#cf1b22]"
                 >
-                  {FRECUENCIA_LABELS[f].replace('Mantenimiento ', '')}
+                  {primerasHoras === 'horometro'
+                    ? FRECUENCIA_LABELS[f as 250 | 1000 | 2000 | 4000 | 5000].replace(
+                        'Mantenimiento ',
+                        ''
+                      )
+                    : PRIMERAS_LABELS[f as PrimerasHoras]}
                 </Badge>
               ))}
               </div>
@@ -426,6 +443,34 @@ export default function CalculatorPage() {
                 </Select>
               )}
             />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Frecuencia
+              </Label>
+              <Select
+                value={primerasHoras === 'horometro' ? 'horometro' : String(primerasHoras)}
+                onValueChange={(value) => {
+                  if (value === 'horometro') {
+                    setPrimerasHoras('horometro');
+                    return;
+                  }
+                  setPrimerasHoras(Number(value) as PrimerasHoras);
+                }}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="horometro">Según horómetro</SelectItem>
+                  {PRIMERAS_FRECUENCIAS.map((horas) => (
+                    <SelectItem key={horas} value={String(horas)}>
+                      {PRIMERAS_LABELS[horas]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

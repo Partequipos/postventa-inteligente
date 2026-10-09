@@ -81,7 +81,7 @@ const TIPOS_ITEM: TemparioTipoItem[] = [
   'Consumible',
   'Servicio',
 ];
-const FRECUENCIAS: MaintenanceFrequencyHours[] = [250, 1000, 2000, 4000, 5000];
+const FRECUENCIAS: MaintenanceFrequencyHours[] = [50, 100, 250, 1000, 2000, 4000, 5000];
 const PAGE_SIZE = 15;
 const BULK_KEEP = '__keep__';
 

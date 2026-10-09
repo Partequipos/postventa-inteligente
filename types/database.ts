@@ -1,5 +1,8 @@
-/** Frecuencias de mantenimiento preventivo (horas) */
-export type MaintenanceFrequencyHours = 250 | 1000 | 2000 | 4000 | 5000;
+/** Frecuencias de mantenimiento preventivo (horas). Las “Primeras” no se mezclan con la fórmula. */
+export type MaintenanceFrequencyHours = 50 | 100 | 250 | 500 | 1000 | 2000 | 2500 | 4000 | 5000;
+
+/** Primeras horas: paquete único, independiente de 250/1000/2000/4000/5000. */
+export type PrimerasHoras = 50 | 100 | 250 | 500 | 2500;
 
 /** Valores válidos de tipo_item (= Excel Modelo2) */
 export type TemparioTipoItem =
@@ -25,6 +28,8 @@ export interface TemparioMantenimiento {
   unidad_medida: string;
   cantidad: number;
   frecuencia_horas: MaintenanceFrequencyHours;
+  /** 'primeras' = Primeras N horas. 'intervalo' = fórmula 250/1000/2000/4000/5000. */
+  frecuencia_grupo?: 'intervalo' | 'primeras' | null;
   aceite_homologado?: string | null;
   referencia_genuina?: string | null;
   ref_sap_dispel?: string | null;
@@ -68,6 +73,8 @@ export interface PreventiveQuoteInput {
   horometro: number;
   kmTrayecto: number;
   horasTrayecto: number;
+  /** Si viene informado, la cotización usa solo ese paquete y no la fórmula del horómetro. */
+  frecuenciaPrimeras?: PrimerasHoras | null;
 }
 
 export interface PreventiveActivityLine {

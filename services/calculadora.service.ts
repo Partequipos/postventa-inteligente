@@ -16,6 +16,17 @@ import {
 /** Copia mutable para modo demo (sin Supabase) */
 let mockStore: TemparioMantenimiento[] = MOCK_TEMPARIOS.map((t) => ({ ...t }));
 
+function resolveFrecuenciaGrupo(
+  row: Record<string, unknown>
+): 'intervalo' | 'primeras' {
+  const raw = String(row.frecuencia_grupo ?? '').trim().toLowerCase();
+  if (raw === 'primeras') return 'primeras';
+  if (raw === 'intervalo') return 'intervalo';
+  const freq = Number(row.frecuencia_horas);
+  if (freq === 50 || freq === 100 || freq === 500 || freq === 2500) return 'primeras';
+  return 'intervalo';
+}
+
 function mapTemparioRow(row: Record<string, unknown>): TemparioMantenimiento {
   const item = String(row.item ?? '');
   return {
@@ -29,6 +40,7 @@ function mapTemparioRow(row: Record<string, unknown>): TemparioMantenimiento {
     unidad_medida: String(row.unidad_medida ?? 'Unidad'),
     cantidad: Number(row.cantidad ?? 1),
     frecuencia_horas: Number(row.frecuencia_horas) as TemparioMantenimiento['frecuencia_horas'],
+    frecuencia_grupo: resolveFrecuenciaGrupo(row),
     aceite_homologado: row.aceite_homologado as string | null,
     referencia_genuina: row.referencia_genuina as string | null,
     ref_sap_dispel: row.ref_sap_dispel as string | null,

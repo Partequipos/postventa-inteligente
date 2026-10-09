@@ -46,6 +46,7 @@ function toDbPayload(
     unidad_medida: row.unidad_medida || 'Unidad',
     cantidad: row.cantidad,
     frecuencia_horas: row.frecuencia_horas,
+    frecuencia_grupo: row.frecuencia_grupo,
     aceite_homologado: row.aceite_homologado,
     referencia_genuina: row.referencia_genuina,
     ref_sap_dispel: row.ref_sap_dispel,

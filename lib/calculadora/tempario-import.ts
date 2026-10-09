@@ -1,7 +1,46 @@
 import type { TemparioTipoItem, MaintenanceFrequencyHours } from '@/types/database';
 import { resolveModelo2, modelo2ToTipoCatalogo } from '@/lib/calculadora/tempario-classify';
 
-const VALID_FREQ: MaintenanceFrequencyHours[] = [250, 1000, 2000, 4000, 5000];
+const INTERVAL_FREQ: MaintenanceFrequencyHours[] = [250, 1000, 2000, 4000, 5000];
+const PRIMERAS_FREQ: MaintenanceFrequencyHours[] = [50, 100, 250, 500, 2500];
+
+function nearestFreq(raw: number, options: MaintenanceFrequencyHours[]): MaintenanceFrequencyHours {
+  let best = options[0];
+  let bestDiff = Number.POSITIVE_INFINITY;
+  for (const f of options) {
+    const diff = Math.abs(f - raw);
+    if (diff < bestDiff) {
+      best = f;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+/** Separa “Primeras N horas” de la fórmula 250/1000/2000/4000/5000. */
+export function parseFrecuenciaTempario(raw: string): {
+  frecuencia_horas: MaintenanceFrequencyHours;
+  frecuencia_grupo: 'intervalo' | 'primeras';
+} {
+  const text = raw.trim().toLowerCase();
+  const hours = toNumber(raw, 250);
+  const primeras = text.includes('primera');
+  if (primeras) {
+    const exact = PRIMERAS_FREQ.find((f) => f === hours);
+    return {
+      frecuencia_horas: exact ?? nearestFreq(hours, PRIMERAS_FREQ),
+      frecuencia_grupo: 'primeras',
+    };
+  }
+  const exactInterval = INTERVAL_FREQ.find((f) => f === hours);
+  if (exactInterval) {
+    return { frecuencia_horas: exactInterval, frecuencia_grupo: 'intervalo' };
+  }
+  if (hours === 50 || hours === 100 || hours === 500 || hours === 2500) {
+    return { frecuencia_horas: hours, frecuencia_grupo: 'primeras' };
+  }
+  return { frecuencia_horas: nearestFreq(hours, INTERVAL_FREQ), frecuencia_grupo: 'intervalo' };
+}
 
 /**
  * Encabezados del Excel real TEMPARIOS (Power Apps / SharePoint).
@@ -49,6 +88,7 @@ export interface TemparioImportRow {
   unidad_medida: string;
   cantidad: number;
   frecuencia_horas: MaintenanceFrequencyHours;
+  frecuencia_grupo: 'intervalo' | 'primeras';
   aceite_homologado: string | null;
   referencia_genuina: string | null;
   ref_sap_dispel: string | null;
@@ -179,22 +219,6 @@ export function parseExcelDateTime(value: string): string | null {
   return null;
 }
 
-function normalizeFrecuencia(raw: number): MaintenanceFrequencyHours {
-  if (VALID_FREQ.includes(raw as MaintenanceFrequencyHours)) {
-    return raw as MaintenanceFrequencyHours;
-  }
-  let best: MaintenanceFrequencyHours = 250;
-  let bestDiff = Number.POSITIVE_INFINITY;
-  for (const f of VALID_FREQ) {
-    const d = Math.abs(f - raw);
-    if (d < bestDiff) {
-      best = f;
-      bestDiff = d;
-    }
-  }
-  return best;
-}
-
 function textOrNull(value: string): string | null {
   const v = value.trim();
   if (!v || /^n\/?a$/i.test(v)) return null;
@@ -266,9 +290,8 @@ export function mapTemparioSheetRow(
   const itemName = getField(row, 'Item', 'item', 'Nombre');
   const { unidad, cantidad } = resolveUnidadCantidad(row);
 
-  const freqRaw = toNumber(
-    getField(row, 'Frecuencia', 'Frecuencia (horas)', 'frecuencia_horas'),
-    250
+  const frecuencia = parseFrecuenciaTempario(
+    getField(row, 'Frecuencia', 'Frecuencia (horas)', 'frecuencia_horas')
   );
   const legacyRaw = getField(row, 'ID', 'Id', 'legacy_id', 'id_legacy');
   const legacyParsed = legacyRaw ? Math.trunc(toNumber(legacyRaw, 0)) : 0;
@@ -297,7 +320,8 @@ export function mapTemparioSheetRow(
     item: itemName,
     unidad_medida: unidad || 'Unidad',
     cantidad,
-    frecuencia_horas: normalizeFrecuencia(freqRaw),
+    frecuencia_horas: frecuencia.frecuencia_horas,
+    frecuencia_grupo: frecuencia.frecuencia_grupo,
     aceite_homologado: textOrNull(getField(row, 'Aceite Homologado', 'aceite_homologado')),
     referencia_genuina: textOrNull(getField(row, 'Referencia Genuina', 'referencia_genuina')),
     ref_sap_dispel: textOrNull(getField(row, 'REF SAP DISPEL', 'ref_sap_dispel')),

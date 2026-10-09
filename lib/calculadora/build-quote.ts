@@ -55,16 +55,26 @@ export function matchesMarcaModelo(
 }
 
 /**
- * Power Apps: 'Frecuencia (horas)'.Value in SelectedFrequencies
- * (coerción numérica por si PostgREST devuelve string).
+ * Power Apps: 'Frecuencia (horas)'.Value in SelectedFrequencies.
+ * Las filas “Primeras N horas” solo entran si el usuario eligió ese paquete.
  */
 export function matchesFrecuencia(
   t: TemparioMantenimiento,
-  frecuencias: MaintenanceFrequencyHours[]
+  frecuencias: number[],
+  soloPrimeras = false
 ): boolean {
   const freq = Number(t.frecuencia_horas);
   if (!Number.isFinite(freq)) return false;
-  return frecuencias.some((f) => Number(f) === freq);
+  if (!frecuencias.some((f) => Number(f) === freq)) return false;
+  return rowEsPrimeras(t) === soloPrimeras;
+}
+
+function rowEsPrimeras(t: TemparioMantenimiento): boolean {
+  const grupo = (t.frecuencia_grupo ?? '').trim().toLowerCase();
+  if (grupo === 'primeras') return true;
+  if (grupo === 'intervalo') return false;
+  const freq = Number(t.frecuencia_horas);
+  return freq === 50 || freq === 100 || freq === 500 || freq === 2500;
 }
 
 /** Código SAMM / ref. de catálogo para la tabla de actividades. */
@@ -139,13 +149,16 @@ export function buildPreventiveQuote(
   input: PreventiveQuoteInput,
   temparios: TemparioMantenimiento[]
 ): PreventiveQuoteResult {
-  const frecuencias = getFrecuenciasPorHorometro(input.horometro);
+  const soloPrimeras = input.frecuenciaPrimeras != null;
+  const frecuencias = soloPrimeras
+    ? [input.frecuenciaPrimeras]
+    : getFrecuenciasPorHorometro(input.horometro);
 
   const forEquip = temparios.filter(
     (t) => t.activo !== false && matchesMarcaModelo(t, input.marca, input.modelo)
   );
 
-  const filtered = forEquip.filter((t) => matchesFrecuencia(t, frecuencias));
+  const filtered = forEquip.filter((t) => matchesFrecuencia(t, frecuencias, soloPrimeras));
 
   const activityRows = filtered.filter((t) => isActivityRow(t));
   const laborHoursTotal = activityRows.reduce(

@@ -16,6 +16,8 @@ export const HOROMETRO_STEP = 250;
  * | 4000       | múltiplo de 4000                                  |
  * | 5000       | múltiplo de 5000                                  |
  *
+ * Las “Primeras 50/100/250/500/2500 horas” no entran en esta fórmula.
+ *
  * Ejemplos: 1000→[250,1000] · 2000→[250,1000,2000] · 4000→[250,1000,2000,4000]
  *           5000→[250,1000,5000] · 8000→[250,1000,2000,4000]
  */
@@ -30,7 +32,6 @@ function buildFrequencyMatrix(): Record<number, MaintenanceFrequencyHours[]> {
     if (h >= 1000 && h % 1000 === 0) {
       freqs.push(1000);
     }
-    // Corregido: 2000 aplica en 2000, 4000, 6000, 8000 (no solo impares)
     if (h >= 2000 && h % 2000 === 0) {
       freqs.push(2000);
     }
@@ -69,11 +70,21 @@ export function getHorometroOptions(): number[] {
   return options;
 }
 
-/** Etiquetas en español para UI */
-export const FRECUENCIA_LABELS: Record<MaintenanceFrequencyHours, string> = {
+/** Etiquetas de la fórmula por horómetro (no incluye paquetes “Primeras”). */
+export const FRECUENCIA_LABELS: Record<250 | 1000 | 2000 | 4000 | 5000, string> = {
   250: 'Mantenimiento 250 h',
   1000: 'Mantenimiento 1.000 h',
   2000: 'Mantenimiento 2.000 h',
   4000: 'Mantenimiento 4.000 h',
   5000: 'Mantenimiento 5.000 h',
+};
+
+export const PRIMERAS_FRECUENCIAS = [50, 100, 250, 500, 2500] as const;
+
+export const PRIMERAS_LABELS: Record<(typeof PRIMERAS_FRECUENCIAS)[number], string> = {
+  50: 'Primeras 50 horas',
+  100: 'Primeras 100 horas',
+  250: 'Primeras 250 horas',
+  500: 'Primeras 500 horas',
+  2500: 'Primeras 2500 horas',
 };

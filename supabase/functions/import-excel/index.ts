@@ -210,8 +210,19 @@ function mapTempario(row: Record<string, string>, createdBy: string) {
     cantidad = toNumber(cantCol, 1);
   }
 
-  const freq = toNumber(getField(row, 'Frecuencia', 'Frecuencia (horas)', 'frecuencia_horas'), 250);
-  const frecuencia = [250, 1000, 2000, 4000, 5000].includes(freq) ? freq : 250;
+  const freqText = getField(row, 'Frecuencia', 'Frecuencia (horas)', 'frecuencia_horas');
+  const freq = toNumber(freqText, 250);
+  const primeras = freqText.toLowerCase().includes('primera');
+  const primerasHoras = [50, 100, 250, 500, 2500];
+  const intervaloHoras = [250, 1000, 2000, 4000, 5000];
+  let frecuencia = 250;
+  let frecuenciaGrupo: 'intervalo' | 'primeras' = 'intervalo';
+  if (primeras || freq === 50 || freq === 100 || freq === 500 || freq === 2500) {
+    frecuencia = primerasHoras.includes(freq) ? freq : 50;
+    frecuenciaGrupo = 'primeras';
+  } else {
+    frecuencia = intervaloHoras.includes(freq) ? freq : 250;
+  }
   const legacyRaw = getField(row, 'ID', 'Id', 'legacy_id', 'id_legacy');
   const legacyId = legacyRaw ? Math.trunc(toNumber(legacyRaw, 0)) || null : null;
   const creadoPor =
@@ -238,6 +249,7 @@ function mapTempario(row: Record<string, string>, createdBy: string) {
     unidad_medida: unidad,
     cantidad,
     frecuencia_horas: frecuencia,
+    frecuencia_grupo: frecuenciaGrupo,
     aceite_homologado: getField(row, 'Aceite Homologado', 'aceite_homologado') || null,
     referencia_genuina: getField(row, 'Referencia Genuina', 'referencia_genuina') || null,
     ref_sap_dispel: getField(row, 'REF SAP DISPEL', 'ref_sap_dispel') || null,

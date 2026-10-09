@@ -93,7 +93,10 @@ function temparioToExcelCells(row: TemparioMantenimiento): Array<string | number
     Item: row.item,
     Cantidad: row.unidad_medida ?? '',
     'Cantidad (Galones)': row.cantidad,
-    Frecuencia: row.frecuencia_horas,
+    Frecuencia:
+      row.frecuencia_grupo === 'primeras'
+        ? `Primeras ${row.frecuencia_horas} horas`
+        : row.frecuencia_horas,
     'Aceite Homologado': row.aceite_homologado ?? '',
     'Referencia Genuina': row.referencia_genuina ?? '',
     'REF SAP DISPEL': row.ref_sap_dispel ?? '',
