@@ -3,6 +3,7 @@ import {
   fetchMarcas,
   fetchModelos,
   fetchTiposItem,
+  fetchPrimerasDisponibles,
   calculatePreventiveMaintenance,
   registerTemparioImport,
   fetchTempariosAdmin,
@@ -30,6 +31,17 @@ export function useCalculadoraModelos(marca: string) {
     queryKey: ['calculadora', 'modelos', marca],
     queryFn: () => fetchModelos(marca),
     enabled: Boolean(marca) && marca !== 'all',
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Paquetes “Primeras N horas” cargados en temparios para la marca y el modelo. */
+export function usePrimerasDisponibles(marca: string, modelo: string) {
+  const enabled = Boolean(marca.trim()) && Boolean(modelo.trim());
+  return useQuery({
+    queryKey: ['calculadora', 'primeras', marca, modelo],
+    queryFn: () => fetchPrimerasDisponibles(marca, modelo),
+    enabled,
     staleTime: 60 * 1000,
   });
 }

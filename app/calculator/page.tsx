@@ -54,6 +54,7 @@ import {
 import {
   useCalculadoraMarcas,
   useCalculadoraModelos,
+  usePrimerasDisponibles,
   useCalculatePreventive,
 } from '@/hooks/use-calculadora';
 import { useTelemetriaEquipos } from '@/hooks/use-projected-maintenance';
@@ -61,7 +62,6 @@ import { pickLatestTelemetriaPerSerie } from '@/services/projected-maintenance.s
 import {
   getFrecuenciasPorHorometro,
   FRECUENCIA_LABELS,
-  PRIMERAS_FRECUENCIAS,
   PRIMERAS_LABELS,
   getHorometroOptions,
   HOROMETRO_MAX,
@@ -210,10 +210,13 @@ export default function CalculatorPage() {
   const hourMeter = watch('hourMeter');
   const travelTime = watch('travelTime');
   const { data: modelos = [] } = useCalculadoraModelos(selectedBrand);
+  const { data: primerasData, isFetched: primerasFetched } = usePrimerasDisponibles(
+    selectedBrand,
+    selectedModel
+  );
+  const primerasDisponibles: PrimerasHoras[] = primerasData ?? [];
   const soloPrimeras = primerasHoras !== 'horometro';
-  const frecuenciasPreview = soloPrimeras
-    ? [primerasHoras]
-    : getFrecuenciasPorHorometro(hourMeter > 0 ? hourMeter : 0);
+  const frecuenciasPreview = soloPrimeras ? [] : getFrecuenciasPorHorometro(hourMeter);
 
   const activeTelemetria = useMemo(
     () => telemetria.filter(isActiveTelemetria),
@@ -238,6 +241,13 @@ export default function CalculatorPage() {
     if (!resolvedModel || resolvedModel === selectedModel) return;
     setValue('model', resolvedModel, { shouldValidate: true });
   }, [selectedMachine, modelos, selectedModel, setValue]);
+
+  useEffect(() => {
+    if (!primerasFetched || primerasHoras === 'horometro') return;
+    if (!primerasDisponibles.includes(primerasHoras)) {
+      setPrimerasHoras('horometro');
+    }
+  }, [primerasDisponibles, primerasFetched, primerasHoras]);
 
   const onSubmit = async (values: FilterFormValues) => {
     setIsCalculating(true);
@@ -280,6 +290,7 @@ export default function CalculatorPage() {
       shouldValidate: true,
       shouldDirty: true,
     });
+    setPrimerasHoras('horometro');
     setMachineSheetOpen(false);
     toast.success(
       `Equipo ${machine.serie}: ${machine.marca} ${machine.modelo} · ${Number(machine.horometro).toLocaleString('es-CO')} h`
@@ -404,21 +415,12 @@ export default function CalculatorPage() {
               </Label>
               {frecuenciasPreview.map((f) => (
                 <Badge
-                  key={`${primerasHoras}-${f}`}
+                  key={f}
                   variant="outline"
-                  title={
-                    primerasHoras === 'horometro'
-                      ? FRECUENCIA_LABELS[f as 250 | 1000 | 2000 | 4000 | 5000]
-                      : PRIMERAS_LABELS[f as PrimerasHoras]
-                  }
+                  title={FRECUENCIA_LABELS[f]}
                   className="h-4 px-1.5 text-[9px] font-medium leading-none border-[#cf1b22]/30 text-[#cf1b22]"
                 >
-                  {primerasHoras === 'horometro'
-                    ? FRECUENCIA_LABELS[f as 250 | 1000 | 2000 | 4000 | 5000].replace(
-                        'Mantenimiento ',
-                        ''
-                      )
-                    : PRIMERAS_LABELS[f as PrimerasHoras]}
+                  {FRECUENCIA_LABELS[f].replace('Mantenimiento ', '')}
                 </Badge>
               ))}
               </div>
@@ -427,50 +429,34 @@ export default function CalculatorPage() {
               control={control}
               render={({ field }) => (
                 <Select
-                  value={String(field.value)}
-                  onValueChange={(v) => field.onChange(Number(v))}
+                  value={soloPrimeras ? `p:${primerasHoras}` : String(field.value)}
+                  onValueChange={(value) => {
+                    if (value.startsWith('p:')) {
+                      setPrimerasHoras(Number(value.slice(2)) as PrimerasHoras);
+                      return;
+                    }
+                    setPrimerasHoras('horometro');
+                    field.onChange(Number(value));
+                  }}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="Seleccione…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     {HOROMETRO_OPTIONS.map((h) => (
-                      <SelectItem key={h} value={String(h)}>
+                      <SelectItem key={`h-${h}`} value={String(h)}>
                         {h.toLocaleString('es-CO')} h
+                      </SelectItem>
+                    ))}
+                    {primerasDisponibles.map((horas) => (
+                      <SelectItem key={`p-${horas}`} value={`p:${horas}`}>
+                        {PRIMERAS_LABELS[horas]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Frecuencia
-              </Label>
-              <Select
-                value={primerasHoras === 'horometro' ? 'horometro' : String(primerasHoras)}
-                onValueChange={(value) => {
-                  if (value === 'horometro') {
-                    setPrimerasHoras('horometro');
-                    return;
-                  }
-                  setPrimerasHoras(Number(value) as PrimerasHoras);
-                }}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="horometro">Según horómetro</SelectItem>
-                  {PRIMERAS_FRECUENCIAS.map((horas) => (
-                    <SelectItem key={horas} value={String(horas)}>
-                      {PRIMERAS_LABELS[horas]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="space-y-1.5">

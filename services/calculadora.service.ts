@@ -4,8 +4,10 @@ import type {
   TemparioUpdatePatch,
   PreventiveQuoteInput,
   PreventiveQuoteResult,
+  PrimerasHoras,
 } from '@/types/database';
 import { buildPreventiveQuote, normalizeEquipKey } from '@/lib/calculadora/build-quote';
+import { esPaquetePrimeras, PRIMERAS_FRECUENCIAS } from '@/lib/maintenance-frequency';
 import { resolveModelo2 } from '@/lib/calculadora/tempario-classify';
 import {
   MOCK_TEMPARIOS,
@@ -283,6 +285,20 @@ export async function fetchTemparios(marca: string, modelo: string): Promise<Tem
       normalizeEquipKey(t.marca) === normalizeEquipKey(marca) &&
       normalizeEquipKey(t.modelo) === normalizeEquipKey(modelo)
   );
+}
+
+/** Primeras N horas que existen en temparios para esa marca y modelo. */
+export async function fetchPrimerasDisponibles(
+  marca: string,
+  modelo: string
+): Promise<PrimerasHoras[]> {
+  const rows = await fetchTemparios(marca, modelo);
+  const found = new Set<number>();
+  for (const row of rows) {
+    const horas = Number(row.frecuencia_horas);
+    if (esPaquetePrimeras(row.frecuencia_grupo, horas)) found.add(horas);
+  }
+  return PRIMERAS_FRECUENCIAS.filter((horas) => found.has(horas));
 }
 
 function filterMockAdmin(query: TempariosAdminQuery): TemparioMantenimiento[] {

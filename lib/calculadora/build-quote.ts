@@ -5,7 +5,7 @@ import type {
   PreventiveConsumableLine,
   MaintenanceFrequencyHours,
 } from '@/types/database';
-import { getFrecuenciasPorHorometro } from '@/lib/maintenance-frequency';
+import { getFrecuenciasPorHorometro, esPaquetePrimeras } from '@/lib/maintenance-frequency';
 import { calcularCostoDesplazamiento, calcularIva, DEFAULT_TARIFA } from '@/lib/travel-cost';
 import {
   isActivityRow,
@@ -70,11 +70,7 @@ export function matchesFrecuencia(
 }
 
 function rowEsPrimeras(t: TemparioMantenimiento): boolean {
-  const grupo = (t.frecuencia_grupo ?? '').trim().toLowerCase();
-  if (grupo === 'primeras') return true;
-  if (grupo === 'intervalo') return false;
-  const freq = Number(t.frecuencia_horas);
-  return freq === 50 || freq === 100 || freq === 500 || freq === 2500;
+  return esPaquetePrimeras(t.frecuencia_grupo, Number(t.frecuencia_horas));
 }
 
 /** Código SAMM / ref. de catálogo para la tabla de actividades. */
@@ -238,6 +234,7 @@ export function buildPreventiveQuote(
     kilometers: input.kmTrayecto,
     status: Math.random() > 0.3 ? 'active' : 'maintenance',
     frecuenciasAplicadas: frecuencias,
+    paquetePrimeras: soloPrimeras ? primeras : null,
     laborHoursTotal,
     laborRate: TARIFA_MANO_OBRA_COP,
     activities,

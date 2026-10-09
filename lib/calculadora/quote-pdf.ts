@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { PRIMERAS_LABELS } from '@/lib/maintenance-frequency';
 import type {
   PreventiveConsumableLine,
   PreventivePartLine,
@@ -167,7 +168,12 @@ function addHeader(
   input: QuotePdfInput
 ): number {
   const { quote, travelTimeHours } = input;
-  const frecuencias = quote.frecuenciasAplicadas.map((f) => `${f}`).join(', ');
+  const horometroLabel = quote.paquetePrimeras
+    ? PRIMERAS_LABELS[quote.paquetePrimeras]
+    : `${quote.hours.toLocaleString('es-CO')} h`;
+  const frecuencias = quote.paquetePrimeras
+    ? PRIMERAS_LABELS[quote.paquetePrimeras]
+    : quote.frecuenciasAplicadas.map((f) => `${f}`).join(', ');
 
   if (logoDataUrl) {
     doc.addImage(logoDataUrl, 'PNG', PAGE_MARGIN, PAGE_MARGIN - 1, 38, 12);
@@ -206,7 +212,7 @@ function addHeader(
         'Modelo',
         quote.model,
         'Horómetro',
-        `${quote.hours.toLocaleString('es-CO')} h`,
+        horometroLabel,
         'Freq. (h)',
         frecuencias,
       ],

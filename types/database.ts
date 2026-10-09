@@ -146,6 +146,8 @@ export interface PreventiveQuoteResult {
   kilometers: number;
   status: 'active' | 'maintenance';
   frecuenciasAplicadas: MaintenanceFrequencyHours[];
+  /** Paquete “Primeras N horas” elegido en el horómetro. No se mezcla con la fórmula. */
+  paquetePrimeras?: PrimerasHoras | null;
   /** Sum(Tiempo horas) de actividades — fórmula Power Apps */
   laborHoursTotal: number;
   /** Tarifa COP/h usada (110000) */
