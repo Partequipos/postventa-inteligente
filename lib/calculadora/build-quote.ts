@@ -149,10 +149,14 @@ export function buildPreventiveQuote(
   input: PreventiveQuoteInput,
   temparios: TemparioMantenimiento[]
 ): PreventiveQuoteResult {
-  const soloPrimeras = input.frecuenciaPrimeras != null;
-  const frecuencias = soloPrimeras
-    ? [input.frecuenciaPrimeras]
-    : getFrecuenciasPorHorometro(input.horometro);
+  const primeras = input.frecuenciaPrimeras;
+  const soloPrimeras = primeras != null;
+  const frecuencias: MaintenanceFrequencyHours[] = [];
+  if (primeras != null) {
+    frecuencias.push(primeras);
+  } else {
+    frecuencias.push(...getFrecuenciasPorHorometro(input.horometro));
+  }
 
   const forEquip = temparios.filter(
     (t) => t.activo !== false && matchesMarcaModelo(t, input.marca, input.modelo)
