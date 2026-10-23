@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Database,
@@ -140,6 +140,52 @@ function formatDate(value?: string | null): string {
   return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function TemparioObservacionCell({
+  value,
+  disabled,
+  onSave,
+}: {
+  value: string;
+  disabled: boolean;
+  onSave: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const skipCommit = useRef(false);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const commit = () => {
+    if (skipCommit.current) {
+      skipCommit.current = false;
+      return;
+    }
+    const next = draft.trim();
+    if (next === value.trim()) return;
+    onSave(next);
+  };
+
+  return (
+    <Textarea
+      rows={2}
+      value={draft}
+      disabled={disabled}
+      aria-label="Observaciones"
+      title="Se guarda al salir del campo"
+      className="min-h-[52px] min-w-[220px] text-xs"
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        skipCommit.current = true;
+        setDraft(value);
+        event.currentTarget.blur();
+      }}
+    />
+  );
+}
+
 type BulkForm = {
   marca: string;
   linea: string;
@@ -263,6 +309,7 @@ export function CalculadoraAdminImport() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkForm, setBulkForm] = useState<BulkForm>(emptyBulkForm);
   const [exporting, setExporting] = useState(false);
+  const [savingObservacionId, setSavingObservacionId] = useState<string | null>(null);
 
   const importMutation = useTemparioImport();
   const updateMutation = useUpdateTempario();
@@ -320,6 +367,23 @@ export function CalculadoraAdminImport() {
   const closeEdit = () => {
     setEditing(null);
     setForm(null);
+  };
+
+  const saveObservacion = async (id: string, next: string) => {
+    setSavingObservacionId(id);
+    try {
+      await updateMutation.mutateAsync({
+        id,
+        updatedBy,
+        patch: { avisos_claves: next || null },
+      });
+      toast.success('Observación actualizada');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo guardar la observación';
+      toast.error(message);
+    } finally {
+      setSavingObservacionId(null);
+    }
   };
 
   const setField = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
@@ -648,7 +712,7 @@ export function CalculadoraAdminImport() {
                 topScrollClassName="h-3.5 bg-muted/50"
                 contentClassName="pb-1"
               >
-                <Table noScrollWrapper className="w-max min-w-[1100px]">
+                <Table noScrollWrapper className="w-max min-w-[1360px]">
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="w-10 pl-4">
@@ -666,6 +730,7 @@ export function CalculadoraAdminImport() {
                       <TableHead className="text-xs">Tipo ítem (Modelo2)</TableHead>
                       <TableHead className="text-xs">Catálogo</TableHead>
                       <TableHead className="text-xs">Ítem</TableHead>
+                      <TableHead className="text-xs">Observaciones</TableHead>
                       <TableHead className="text-xs text-right">Cant.</TableHead>
                       <TableHead className="text-xs">Freq.</TableHead>
                       <TableHead className="text-xs">Ref. genuina</TableHead>
@@ -677,7 +742,7 @@ export function CalculadoraAdminImport() {
                     {isLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <TableRow key={`sk-${i}`}>
-                          <TableCell colSpan={13}>
+                          <TableCell colSpan={14}>
                             <Skeleton className="h-6 w-full" />
                           </TableCell>
                         </TableRow>
@@ -685,7 +750,7 @@ export function CalculadoraAdminImport() {
                     ) : rows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={13}
+                          colSpan={14}
                           className="text-center text-sm text-muted-foreground py-10"
                         >
                           No hay temparios con los filtros actuales. Importe un Excel o ajuste la
@@ -720,6 +785,13 @@ export function CalculadoraAdminImport() {
                           </TableCell>
                           <TableCell className="text-xs max-w-[180px] truncate" title={row.item}>
                             {row.item}
+                          </TableCell>
+                          <TableCell className="align-top py-1.5">
+                            <TemparioObservacionCell
+                              value={row.avisos_claves ?? ''}
+                              disabled={savingObservacionId === row.id}
+                              onSave={(next) => void saveObservacion(row.id, next)}
+                            />
                           </TableCell>
                           <TableCell className="text-xs text-right tabular-nums">
                             {row.cantidad}
@@ -936,7 +1008,7 @@ export function CalculadoraAdminImport() {
                   onChange={(e) => setField('procedimiento', e.target.value)}
                 />
               </Field>
-              <Field label="Avisos claves" className="sm:col-span-2">
+              <Field label="Observaciones" className="sm:col-span-2">
                 <Textarea
                   rows={2}
                   value={form.avisos_claves}
@@ -1102,7 +1174,7 @@ export function CalculadoraAdminImport() {
                 onChange={(e) => setBulkField('procedimiento', e.target.value)}
               />
             </Field>
-            <Field label="Avisos claves" className="sm:col-span-2">
+            <Field label="Observaciones" className="sm:col-span-2">
               <Textarea
                 rows={2}
                 value={bulkForm.avisos_claves}
