@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, Search, ChevronDown, LogOut, User, Settings, Menu, Loader2 } from 'lucide-react';
+import { Bell, Search, ChevronDown, LogOut, User, Settings, Menu, Loader2, KeyRound } from 'lucide-react';
+import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,7 @@ export function TopBar({ onMenuToggle, sidebarOpen = true, className }: TopBarPr
   const { currentUser, role, isAuthenticated, logout } = useUserStore();
   const [searchFocused, setSearchFocused] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const displayName = isAuthenticated
@@ -225,6 +227,16 @@ export function TopBar({ onMenuToggle, sidebarOpen = true, className }: TopBarPr
               <Settings className="h-4 w-4 text-muted-foreground" />
               <span>Configuración</span>
             </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2 cursor-pointer"
+              disabled={!isAuthenticated}
+              onSelect={() => {
+                globalThis.setTimeout(() => setPasswordOpen(true), 0);
+              }}
+            >
+              <KeyRound className="h-4 w-4 text-muted-foreground" />
+              <span>Actualizar clave</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="gap-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
@@ -244,6 +256,7 @@ export function TopBar({ onMenuToggle, sidebarOpen = true, className }: TopBarPr
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
     </header>
   );
 }

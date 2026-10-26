@@ -1,5 +1,9 @@
 import type { User, UserRole } from '@/lib/mock-data';
-import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import {
+  createEphemeralSupabaseClient,
+  getSupabaseClient,
+  isSupabaseConfigured,
+} from '@/lib/supabase/client';
 
 const ROLE_MAP: Record<string, UserRole> = {
   administrador: 'Administrator',
@@ -159,6 +163,72 @@ export async function signInWithPassword(
 
   const user = await fetchProfileAsUser(data.user.id, data.user.email ?? email);
   return { user, sessionExists: Boolean(data.session) };
+}
+
+export const MIN_USER_PASSWORD_LENGTH = 8;
+
+/** Valida el formulario de cambio de clave. Devuelve el mensaje o null si es válido. */
+export function passwordChangeError(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+): string | null {
+  if (!currentPassword) return 'Ingrese la clave actual.';
+  if (newPassword.length < MIN_USER_PASSWORD_LENGTH) {
+    return `La nueva clave debe tener al menos ${MIN_USER_PASSWORD_LENGTH} caracteres.`;
+  }
+  if (newPassword !== confirmPassword) {
+    return 'La confirmación no coincide con la nueva clave.';
+  }
+  if (newPassword === currentPassword) {
+    return 'La nueva clave debe ser distinta de la actual.';
+  }
+  return null;
+}
+
+function passwordUpdateMessage(raw: string): string {
+  const message = raw.toLowerCase();
+  if (message.includes('same') || message.includes('different from the old')) {
+    return 'La nueva clave debe ser distinta de la actual.';
+  }
+  if (message.includes('weak') || message.includes('at least') || message.includes('pwned')) {
+    return 'La nueva clave no cumple la política de seguridad. Use una más larga y menos común.';
+  }
+  return raw;
+}
+
+/**
+ * Cada usuario actualiza su propia clave.
+ * Primero se comprueba la clave actual en un cliente aparte y luego se guarda la nueva en la sesión activa.
+ */
+export async function changeOwnPassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('La actualización de clave requiere una sesión de Supabase.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const email = sessionData.session?.user?.email?.trim();
+  if (!email) {
+    throw new Error('No hay una sesión activa. Vuelva a iniciar sesión.');
+  }
+
+  const verifier = createEphemeralSupabaseClient();
+  const { error: currentError } = await verifier.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+  if (currentError) {
+    throw new Error('La clave actual no es correcta.');
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    throw new Error(passwordUpdateMessage(error.message));
+  }
 }
 
 export async function signOut(): Promise<void> {
