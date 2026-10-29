@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useUserStore } from "@/store";
 import { signInWithPassword } from "@/lib/supabase/auth";
+import { PasswordRecoveryForm } from "@/components/auth/password-recovery-form";
 
 // ── Validation schema ──────────────────────────────────────────────────────────
 
@@ -275,6 +276,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
 
   const {
     register,
@@ -452,11 +454,20 @@ export default function LoginPage() {
                   </p>
                 </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-700">Bienvenido de nuevo</h3>
-              <p className="text-sm text-gray-500 mt-0.5">Inicia sesión en tu cuenta para continuar</p>
+              <h3 className="text-lg font-semibold text-gray-700">
+                {showRecovery ? "Recuperar clave" : "Bienvenido de nuevo"}
+              </h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {showRecovery
+                  ? "Le enviaremos un enlace para crear una nueva clave"
+                  : "Inicia sesión en tu cuenta para continuar"}
+              </p>
             </motion.div>
 
             {/* Form */}
+            {showRecovery ? (
+              <PasswordRecoveryForm onBack={() => setShowRecovery(false)} />
+            ) : (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Email field */}
               <motion.div variants={itemVariants}>
@@ -539,6 +550,7 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
+                  onClick={() => setShowRecovery(true)}
                   className="text-sm text-[#cf1b22] hover:text-[#a01419] font-medium transition-colors"
                 >
                   ¿Olvidaste tu contraseña?
@@ -590,6 +602,7 @@ export default function LoginPage() {
                 </button>
               </motion.div>
             </form>
+            )}
           </motion.div>
         </div>
 

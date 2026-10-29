@@ -130,7 +130,24 @@ export interface AuthResult {
   sessionExists: boolean;
 }
 
-export type AuthChangeReason = 'signed_out' | 'initial' | 'update';
+export type AuthChangeReason = 'signed_out' | 'initial' | 'update' | 'recovery';
+
+const PASSWORD_RECOVERY_KEY = 'postventa-password-recovery';
+
+export function markPasswordRecoveryPending(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(PASSWORD_RECOVERY_KEY, '1');
+}
+
+export function clearPasswordRecoveryPending(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(PASSWORD_RECOVERY_KEY);
+}
+
+export function isPasswordRecoveryPending(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.sessionStorage.getItem(PASSWORD_RECOVERY_KEY) === '1';
+}
 
 /**
  * Login con Supabase Auth. Si Supabase no está configurado, usa mock local.
@@ -167,6 +184,17 @@ export async function signInWithPassword(
 
 export const MIN_USER_PASSWORD_LENGTH = 8;
 
+/** Valida la clave nueva y su confirmación. */
+export function newPasswordFormError(newPassword: string, confirmPassword: string): string | null {
+  if (newPassword.length < MIN_USER_PASSWORD_LENGTH) {
+    return `La nueva clave debe tener al menos ${MIN_USER_PASSWORD_LENGTH} caracteres.`;
+  }
+  if (newPassword !== confirmPassword) {
+    return 'La confirmación no coincide con la nueva clave.';
+  }
+  return null;
+}
+
 /** Valida el formulario de cambio de clave. Devuelve el mensaje o null si es válido. */
 export function passwordChangeError(
   currentPassword: string,
@@ -174,12 +202,8 @@ export function passwordChangeError(
   confirmPassword: string
 ): string | null {
   if (!currentPassword) return 'Ingrese la clave actual.';
-  if (newPassword.length < MIN_USER_PASSWORD_LENGTH) {
-    return `La nueva clave debe tener al menos ${MIN_USER_PASSWORD_LENGTH} caracteres.`;
-  }
-  if (newPassword !== confirmPassword) {
-    return 'La confirmación no coincide con la nueva clave.';
-  }
+  const nextError = newPasswordFormError(newPassword, confirmPassword);
+  if (nextError) return nextError;
   if (newPassword === currentPassword) {
     return 'La nueva clave debe ser distinta de la actual.';
   }
@@ -229,6 +253,60 @@ export async function changeOwnPassword(
   if (error) {
     throw new Error(passwordUpdateMessage(error.message));
   }
+}
+
+function recoveryRedirectUrl(): string {
+  return `${window.location.origin}/auth/nueva-clave`;
+}
+
+function resetRequestError(raw: string): string | null {
+  const message = raw.toLowerCase();
+  if (message.includes('rate') || message.includes('too many') || message.includes('once every')) {
+    return 'Espere un momento antes de solicitar otro enlace.';
+  }
+  if (message.includes('not found')) {
+    return null;
+  }
+  return 'No se pudo enviar el enlace de recuperación.';
+}
+
+/** Envía el enlace de recuperación. No indica si el correo existe. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized.includes('@')) {
+    throw new Error('Ingrese un correo electrónico válido.');
+  }
+  if (!isSupabaseConfigured()) {
+    throw new Error('La recuperación de clave no está disponible en este momento.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(normalized, {
+    redirectTo: recoveryRedirectUrl(),
+  });
+  if (!error) return;
+
+  const mapped = resetRequestError(error.message);
+  if (mapped) throw new Error(mapped);
+}
+
+/** Guarda la clave nueva abierta desde el enlace del correo. */
+export async function completePasswordReset(newPassword: string): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('La recuperación de clave no está disponible en este momento.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {
+    throw new Error('El enlace venció o no es válido. Solicite uno nuevo desde el inicio de sesión.');
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    throw new Error(passwordUpdateMessage(error.message));
+  }
+  clearPasswordRecoveryPending();
 }
 
 export async function signOut(): Promise<void> {
@@ -322,7 +400,21 @@ export function subscribeAuthChanges(
     deferAuthWork(() => {
       void (async () => {
         if (event === 'SIGNED_OUT') {
+          clearPasswordRecoveryPending();
           onUser(null, 'signed_out');
+          markReady();
+          return;
+        }
+
+        if (event === 'PASSWORD_RECOVERY') {
+          markPasswordRecoveryPending();
+          if (session?.user) {
+            const user = await resolveUserFromAuthUser(
+              session.user.id,
+              session.user.email ?? ''
+            );
+            if (user) onUser(user, 'recovery');
+          }
           markReady();
           return;
         }

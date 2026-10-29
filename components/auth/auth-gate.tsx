@@ -5,10 +5,20 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useUserStore } from '@/store';
 
+import { isPasswordRecoveryPending } from '@/lib/supabase/auth';
+
 const PUBLIC_PATHS = ['/login'] as const;
+const RECOVERY_PATH = '/auth/nueva-clave';
+
+function isRecoveryPath(pathname: string): boolean {
+  return pathname === RECOVERY_PATH || pathname.startsWith(`${RECOVERY_PATH}/`);
+}
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return (
+    isRecoveryPath(pathname) ||
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  );
 }
 
 function AuthLoadingScreen() {
@@ -32,20 +42,27 @@ export function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) 
   const authReady = useUserStore((s) => s.authReady);
   const isAuthenticated = useUserStore((s) => s.isAuthenticated);
 
-  const publicRoute = isPublicPath(pathname ?? '');
+  const path = pathname ?? '';
+  const publicRoute = isPublicPath(path);
+  const recoveryRoute = isRecoveryPath(path);
 
   useEffect(() => {
     if (!authReady) return;
+
+    if (isPasswordRecoveryPending() && !recoveryRoute) {
+      router.replace(RECOVERY_PATH);
+      return;
+    }
 
     if (!isAuthenticated && !publicRoute) {
       router.replace('/login');
       return;
     }
 
-    if (isAuthenticated && publicRoute) {
+    if (isAuthenticated && publicRoute && !recoveryRoute) {
       router.replace('/dashboard');
     }
-  }, [authReady, isAuthenticated, publicRoute, router]);
+  }, [authReady, isAuthenticated, path, publicRoute, recoveryRoute, router]);
 
   if (!authReady) {
     return <AuthLoadingScreen />;
@@ -55,7 +72,7 @@ export function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) 
     return <AuthLoadingScreen />;
   }
 
-  if (isAuthenticated && publicRoute) {
+  if (isAuthenticated && publicRoute && !recoveryRoute) {
     return <AuthLoadingScreen />;
   }
 
