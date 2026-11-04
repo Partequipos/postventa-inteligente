@@ -9,14 +9,20 @@ import { isPasswordRecoveryPending } from '@/lib/supabase/auth';
 
 const PUBLIC_PATHS = ['/login'] as const;
 const RECOVERY_PATH = '/auth/nueva-clave';
+const VERIFY_PATH = '/auth/verificar-correo';
 
 function isRecoveryPath(pathname: string): boolean {
   return pathname === RECOVERY_PATH || pathname.startsWith(`${RECOVERY_PATH}/`);
 }
 
+function isVerifyPath(pathname: string): boolean {
+  return pathname === VERIFY_PATH || pathname.startsWith(`${VERIFY_PATH}/`);
+}
+
 function isPublicPath(pathname: string): boolean {
   return (
     isRecoveryPath(pathname) ||
+    isVerifyPath(pathname) ||
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
   );
 }
@@ -45,6 +51,8 @@ export function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) 
   const path = pathname ?? '';
   const publicRoute = isPublicPath(path);
   const recoveryRoute = isRecoveryPath(path);
+  const verifyRoute = isVerifyPath(path);
+  const authStayOnPublic = recoveryRoute || verifyRoute;
 
   useEffect(() => {
     if (!authReady) return;
@@ -59,10 +67,10 @@ export function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) 
       return;
     }
 
-    if (isAuthenticated && publicRoute && !recoveryRoute) {
+    if (isAuthenticated && publicRoute && !authStayOnPublic) {
       router.replace('/dashboard');
     }
-  }, [authReady, isAuthenticated, path, publicRoute, recoveryRoute, router]);
+  }, [authReady, isAuthenticated, path, publicRoute, recoveryRoute, authStayOnPublic, router]);
 
   if (!authReady) {
     return <AuthLoadingScreen />;
@@ -72,7 +80,7 @@ export function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) 
     return <AuthLoadingScreen />;
   }
 
-  if (isAuthenticated && publicRoute && !recoveryRoute) {
+  if (isAuthenticated && publicRoute && !authStayOnPublic) {
     return <AuthLoadingScreen />;
   }
 

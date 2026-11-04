@@ -8,12 +8,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Rol fijo visualizador: el cliente no puede autoasignarse privilegios.
+  -- La creación admin hace upsert posterior con el rol correcto.
   INSERT INTO public.perfiles (id, email, nombre, rol, activo)
   VALUES (
     NEW.id,
     COALESCE(NEW.email, ''),
     COALESCE(NEW.raw_user_meta_data->>'nombre', split_part(COALESCE(NEW.email, 'usuario'), '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'rol', 'visualizador'),
+    'visualizador',
     TRUE
   )
   ON CONFLICT (id) DO NOTHING;

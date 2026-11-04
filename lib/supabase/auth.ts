@@ -175,11 +175,22 @@ export async function signInWithPassword(
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user) {
-    throw new Error(error?.message ?? 'Credenciales inválidas');
+    throw new Error(signInErrorMessage(error?.message));
   }
 
   const user = await fetchProfileAsUser(data.user.id, data.user.email ?? email);
   return { user, sessionExists: Boolean(data.session) };
+}
+
+function signInErrorMessage(raw?: string): string {
+  const message = (raw ?? '').toLowerCase();
+  if (message.includes('email not confirmed')) {
+    return 'Debe confirmar su correo antes de iniciar sesión. Revise su bandeja o solicite un nuevo enlace.';
+  }
+  if (message.includes('invalid login') || message.includes('invalid credentials')) {
+    return 'Correo o clave incorrectos.';
+  }
+  return raw?.trim() || 'Credenciales inválidas';
 }
 
 export const MIN_USER_PASSWORD_LENGTH = 8;
@@ -193,6 +204,108 @@ export function newPasswordFormError(newPassword: string, confirmPassword: strin
     return 'La confirmación no coincide con la nueva clave.';
   }
   return null;
+}
+
+export interface SignUpInput {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  nombre: string;
+}
+
+export type SignUpResult =
+  | { status: 'verification_sent'; email: string }
+  | { status: 'session_ready'; user: User };
+
+function signupRedirectUrl(): string {
+  return `${window.location.origin}/auth/verificar-correo`;
+}
+
+export function signUpFormError(input: SignUpInput): string | null {
+  if (!input.nombre.trim()) return 'El nombre es obligatorio.';
+  if (!input.email.trim().includes('@')) return 'Ingrese un correo electrónico válido.';
+  return newPasswordFormError(input.password, input.confirmPassword);
+}
+
+function signUpErrorMessage(raw: string): string {
+  const message = raw.toLowerCase();
+  if (message.includes('already') || message.includes('registered') || message.includes('exists')) {
+    return 'Este correo ya tiene una cuenta. Inicie sesión o recupere su clave.';
+  }
+  if (message.includes('rate') || message.includes('too many')) {
+    return 'Espere un momento antes de intentar de nuevo.';
+  }
+  if (message.includes('password') || message.includes('weak')) {
+    return 'La clave no cumple la política de seguridad. Use al menos 8 caracteres.';
+  }
+  return raw.trim() || 'No se pudo crear la cuenta.';
+}
+
+/**
+ * Registro público desde login.
+ * El perfil nace como visualizador (el trigger no toma el rol del cliente).
+ * Si Auth exige confirmación, se envía el correo y no se abre sesión.
+ */
+export async function signUpWithEmail(input: SignUpInput): Promise<SignUpResult> {
+  const validation = signUpFormError(input);
+  if (validation) throw new Error(validation);
+
+  if (!isSupabaseConfigured()) {
+    throw new Error('El registro no está disponible en este momento.');
+  }
+
+  const email = input.email.trim().toLowerCase();
+  const nombre = input.nombre.trim();
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: input.password,
+    options: {
+      emailRedirectTo: signupRedirectUrl(),
+      data: { nombre },
+    },
+  });
+
+  if (error) {
+    throw new Error(signUpErrorMessage(error.message));
+  }
+
+  // Correo ya registrado: Supabase puede devolver usuario sin identities nuevas.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    throw new Error('Este correo ya tiene una cuenta. Inicie sesión o recupere su clave.');
+  }
+
+  if (data.session?.user) {
+    const user = await fetchProfileAsUser(data.session.user.id, data.session.user.email ?? email);
+    return { status: 'session_ready', user };
+  }
+
+  return { status: 'verification_sent', email };
+}
+
+/** Reenvía el correo de verificación a una cuenta pendiente de confirmar. */
+export async function resendSignupVerification(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized.includes('@')) {
+    throw new Error('Ingrese un correo electrónico válido.');
+  }
+  if (!isSupabaseConfigured()) {
+    throw new Error('El registro no está disponible en este momento.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: normalized,
+    options: { emailRedirectTo: signupRedirectUrl() },
+  });
+  if (!error) return;
+
+  const message = error.message.toLowerCase();
+  if (message.includes('rate') || message.includes('too many') || message.includes('once every')) {
+    throw new Error('Espere un momento antes de solicitar otro correo.');
+  }
+  throw new Error('No se pudo reenviar el correo de verificación.');
 }
 
 /** Valida el formulario de cambio de clave. Devuelve el mensaje o null si es válido. */
