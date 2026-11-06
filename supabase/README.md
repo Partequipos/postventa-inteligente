@@ -163,8 +163,15 @@ O en [vercel.com/new](https://vercel.com/new): Import Git Repository → `fradur
 
 Tras el deploy, en Supabase → Authentication → URL Configuration:
 
-- Site URL: `https://tu-app.vercel.app`
-- Redirect URLs: `https://tu-app.vercel.app/**`
+- **Site URL** (obligatorio, sin wildcards): `https://postventa-inteligente.vercel.app`  
+  No deje `http://localhost:3000` aquí: es el fallback de los correos Auth.
+- **Redirect URLs** (allow list, una por línea):
+  - `https://postventa-inteligente.vercel.app/**`
+  - `https://postventa-inteligente.vercel.app/auth/verificar-correo`
+  - `https://postventa-inteligente.vercel.app/auth/nueva-clave`
+  - `http://localhost:3000/**` (solo desarrollo local)
+
+En Vercel, `NEXT_PUBLIC_APP_URL` debe coincidir con el Site URL de producción.
 
 ## Importación Excel / CSV
 

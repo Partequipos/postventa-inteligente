@@ -21,10 +21,8 @@ import {
 import { useUserStore } from "@/store";
 import { signInWithPassword } from "@/lib/supabase/auth";
 import { PasswordRecoveryForm } from "@/components/auth/password-recovery-form";
-import { SignupForm } from "@/components/auth/signup-form";
-import type { User as AppUser } from "@/lib/mock-data";
 
-type LoginPanel = "login" | "recovery" | "register";
+type LoginPanel = "login" | "recovery";
 
 // ── Validation schema ──────────────────────────────────────────────────────────
 
@@ -312,13 +310,6 @@ export default function LoginPage() {
     }
   };
 
-  const enterAfterSignup = async (user: AppUser) => {
-    setUser(user);
-    setLoginSuccess(true);
-    await new Promise((r) => setTimeout(r, 400));
-    router.push("/dashboard");
-  };
-
   const EASE_OUT = "easeOut" as const;
 
   // ── Framer Motion variants ─────────────────────────────────────────────────
@@ -466,29 +457,18 @@ export default function LoginPage() {
                 </div>
               </div>
               <h3 className="text-lg font-semibold text-gray-700">
-                {panel === "recovery"
-                  ? "Recuperar clave"
-                  : panel === "register"
-                    ? "Crear cuenta"
-                    : "Bienvenido de nuevo"}
+                {panel === "recovery" ? "Recuperar clave" : "Bienvenido de nuevo"}
               </h3>
               <p className="text-sm text-gray-500 mt-0.5">
                 {panel === "recovery"
                   ? "Le enviaremos un enlace para crear una nueva clave"
-                  : panel === "register"
-                    ? "Regístrese y confirme su correo para ingresar"
-                    : "Inicia sesión en tu cuenta para continuar"}
+                  : "Inicia sesión en tu cuenta para continuar"}
               </p>
             </motion.div>
 
             {/* Form */}
             {panel === "recovery" ? (
               <PasswordRecoveryForm onBack={() => setPanel("login")} />
-            ) : panel === "register" ? (
-              <SignupForm
-                onBack={() => setPanel("login")}
-                onSessionReady={(user) => void enterAfterSignup(user)}
-              />
             ) : (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Email field */}
@@ -623,17 +603,6 @@ export default function LoginPage() {
                   {loginSuccess && !isLoading && <CheckCircle2 size={16} />}
                 </button>
               </motion.div>
-
-              <motion.p variants={itemVariants} className="text-center text-sm text-gray-500">
-                ¿Nuevo en la plataforma?{" "}
-                <button
-                  type="button"
-                  onClick={() => setPanel("register")}
-                  className="text-[#cf1b22] hover:text-[#a01419] font-medium"
-                >
-                  Crear cuenta
-                </button>
-              </motion.p>
             </form>
             )}
           </motion.div>

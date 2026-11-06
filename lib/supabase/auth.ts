@@ -217,8 +217,28 @@ export type SignUpResult =
   | { status: 'verification_sent'; email: string }
   | { status: 'session_ready'; user: User };
 
+/**
+ * Origen para enlaces de Auth (verificación / recuperación).
+ * Prioriza NEXT_PUBLIC_APP_URL de producción; evita caer en Site URL localhost de Supabase.
+ */
+function getAuthRedirectOrigin(): string {
+  const configured = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim().replace(/\/$/, '');
+  const isLocalConfigured =
+    configured.includes('localhost') || configured.includes('127.0.0.1');
+
+  if (configured && !isLocalConfigured) {
+    return configured;
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return configured || 'https://postventa-inteligente.vercel.app';
+}
+
 function signupRedirectUrl(): string {
-  return `${window.location.origin}/auth/verificar-correo`;
+  return `${getAuthRedirectOrigin()}/auth/verificar-correo`;
 }
 
 export function signUpFormError(input: SignUpInput): string | null {
@@ -369,7 +389,7 @@ export async function changeOwnPassword(
 }
 
 function recoveryRedirectUrl(): string {
-  return `${window.location.origin}/auth/nueva-clave`;
+  return `${getAuthRedirectOrigin()}/auth/nueva-clave`;
 }
 
 function resetRequestError(raw: string): string | null {
