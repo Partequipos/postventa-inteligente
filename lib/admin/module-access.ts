@@ -15,6 +15,7 @@ export const MODULE_PATHS: Record<string, string> = {
   'Panel Principal': '/dashboard',
   Calculadora: '/calculator',
   'Mantenimiento Proyectado': '/projected-maintenance',
+  LCC: '/lcc',
   'Repuestos CPP': '/cpp',
   'Panel Ejecutivo': '/executive-dashboard',
   Administración: '/administration',

@@ -22,6 +22,10 @@ import {
   importTelemetriaFromFile,
   type TelemetriaImportProgress,
 } from '@/services/telemetria-import.service';
+import {
+  importLccFromFile,
+  type LccImportProgress,
+} from '@/services/lcc-import.service';
 import { useUserStore } from '@/store';
 
 export interface ExcelImportResult {
@@ -46,7 +50,7 @@ interface ExcelImportPanelProps {
   readonly templateButtonLabel?: string;
 }
 
-type UploadProgress = TemparioImportProgress | TelemetriaImportProgress;
+type UploadProgress = TemparioImportProgress | TelemetriaImportProgress | LccImportProgress;
 
 export function ExcelImportPanel({
   title,
@@ -138,6 +142,20 @@ export function ExcelImportPanel({
           skipped = response.skipped ?? 0;
           deduplicated = response.deduplicated ?? 0;
           importResumen = response.resumen;
+          errors = response.errors ?? [];
+        } else if (modulo === 'lcc') {
+          const response = await importLccFromFile(
+            f,
+            currentUser?.email ?? currentUser?.name ?? 'admin',
+            (p) => setProgress({ ...p })
+          );
+          if (response.error && response.recordsOk === 0) {
+            throw new Error(response.error);
+          }
+          recordsOk = response.recordsOk;
+          recordsError = response.recordsError;
+          duplicates = response.duplicates;
+          total = response.total ?? recordsOk + recordsError;
           errors = response.errors ?? [];
         } else if (isSupabaseConfigured()) {
           const response = await invokeImportExcel(modulo, f);

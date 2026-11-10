@@ -1,6 +1,6 @@
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
-export type ImportModulo = 'calculadora' | 'proyectados' | 'cpp';
+export type ImportModulo = 'calculadora' | 'proyectados' | 'cpp' | 'lcc';
 
 /** Resumen de una carga masiva de telemetría (persistido en importaciones.resumen_json). */
 export interface TelemetriaImportResumen {

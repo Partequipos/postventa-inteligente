@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   PanelLeftClose,
+  Cog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ const navItems: {
   { label: 'Panel Principal', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Calculadora', href: '/calculator', icon: Calculator },
   { label: 'Mantenimiento Proyectado', href: '/projected-maintenance', icon: Calendar },
+  { label: 'LCC', href: '/lcc', icon: Cog },
   { label: 'Repuestos CPP', href: '/cpp', icon: Package, feature: 'cppModule' },
   { label: 'Panel Ejecutivo', href: '/executive-dashboard', icon: BarChart3 },
   { label: 'Administración', href: '/administration', icon: Settings },

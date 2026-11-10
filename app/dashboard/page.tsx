@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Upload,
+  Cog,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useUserStore } from "@/store";
@@ -155,6 +156,19 @@ function buildModuleCards(badges: DashboardModuleBadges): ModuleCard[] {
       badgeBg: "#eff6ff",
       badgeText: "#1d4ed8",
       href: "/projected-maintenance",
+    },
+    {
+      id: "lcc",
+      icon: <Cog size={26} />,
+      iconColor: "#7c3aed",
+      accentColor: "#7c3aed",
+      title: "LCC — Ciclo de vida de componentes",
+      description:
+        "Componentes a verificar o cambiar según horómetro de telemetría y catálogo del fabricante",
+      badge: "Flota activa",
+      badgeBg: "#f5f3ff",
+      badgeText: "#6d28d9",
+      href: "/lcc",
     },
     {
       id: "cpp",

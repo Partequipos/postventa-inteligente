@@ -12,6 +12,7 @@ import { AdminDomainImportTables } from '@/components/modules/admin-domain-impor
 import { AdminTelemetriaRecordsTable } from '@/components/modules/admin-telemetria-records-table';
 import { AdminEquipoRelacionesTable } from '@/components/modules/admin-equipo-relaciones-table';
 import { CalculadoraAdminImport } from '@/components/modules/calculadora-admin-import';
+import { LccAdminImport } from '@/components/modules/lcc-admin-import';
 import {
   useAdminImportaciones,
   useDeleteTelemetriaImportBatch,
@@ -21,6 +22,8 @@ import {
   countTelemetriaByImportBatch,
   countTempariosByImportBatch,
 } from '@/services/administration.service';
+import { countLccByImportBatch } from '@/services/lcc.service';
+import { useDeleteLccImportBatch } from '@/hooks/use-lcc';
 import type { AdminImportRow } from '@/services/administration.service';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUserStore } from '@/store';
@@ -28,6 +31,7 @@ import { useUserStore } from '@/store';
 const IMPORT_TYPES = [
   'Cronograma / Telemetría',
   'Temparios',
+  'LCC',
   'Relaciones Equipo · Cliente · Asesor',
   'Asesores',
   'Equipos',
@@ -46,7 +50,7 @@ function formatImportChanges(resumen: AdminImportRow['resumen']): string | null 
 }
 
 function isBatchRevertableModulo(modulo: string): boolean {
-  return modulo === 'proyectados' || modulo === 'calculadora';
+  return modulo === 'proyectados' || modulo === 'calculadora' || modulo === 'lcc';
 }
 
 function ImportStatusBadge({ status }: Readonly<{ status: string }>) {
@@ -87,11 +91,13 @@ export function AdminImportsPanel() {
     useAdminImportaciones();
   const deleteTelemetriaBatch = useDeleteTelemetriaImportBatch();
   const deleteTemparioBatch = useDeleteTemparioImportBatch();
+  const deleteLccBatch = useDeleteLccImportBatch();
 
   const invalidateDomain = async () => {
     await queryClient.invalidateQueries({ queryKey: ['admin'] });
     await queryClient.invalidateQueries({ queryKey: ['proyectados'] });
     await queryClient.invalidateQueries({ queryKey: ['calculadora'] });
+    await queryClient.invalidateQueries({ queryKey: ['lcc'] });
     await refetch();
   };
 
@@ -104,21 +110,22 @@ export function AdminImportsPanel() {
     if (!isAdmin || !isBatchRevertableModulo(imp.modulo) || imp.status === 'reverted') return;
 
     const isTemparios = imp.modulo === 'calculadora';
+    const isLcc = imp.modulo === 'lcc';
     let linked = 0;
     try {
-      linked = isTemparios
-        ? await countTempariosByImportBatch(imp.batchId)
-        : await countTelemetriaByImportBatch(imp.batchId);
+      if (isTemparios) linked = await countTempariosByImportBatch(imp.batchId);
+      else if (isLcc) linked = await countLccByImportBatch(imp.batchId);
+      else linked = await countTelemetriaByImportBatch(imp.batchId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo consultar el lote.');
       return;
     }
 
-    const entityLabel = isTemparios ? 'temparios' : 'telemetría';
+    const entityLabel = isTemparios ? 'temparios' : isLcc ? 'LCC' : 'telemetría';
     const ok = window.confirm(
       `¿Eliminar la carga masiva "${imp.file}" (${imp.id})?\n\n` +
         `Se borrarán ${linked.toLocaleString('es-CO')} registro(s) de ${entityLabel} de este lote.\n` +
-        (isTemparios
+        (isTemparios || isLcc
           ? 'No se eliminarán otras cargas ni cotizaciones.'
           : 'No se eliminarán maestros (clientes, asesores, equipos) ni otras cargas.')
     );
@@ -128,7 +135,9 @@ export function AdminImportsPanel() {
     try {
       const result = isTemparios
         ? await deleteTemparioBatch.mutateAsync(imp.batchId)
-        : await deleteTelemetriaBatch.mutateAsync(imp.batchId);
+        : isLcc
+          ? await deleteLccBatch.mutateAsync(imp.batchId)
+          : await deleteTelemetriaBatch.mutateAsync(imp.batchId);
       toast.success(
         `Carga revertida: ${result.deleted.toLocaleString('es-CO')} registro(s) eliminados.`
       );
@@ -154,6 +163,12 @@ export function AdminImportsPanel() {
             <>
               Carga masiva y edición de <strong>temparios de mantenimiento</strong> que alimentan la
               calculadora. Solo administradores.
+            </>
+          ) : importType === 'LCC' ? (
+            <>
+              Catálogo <strong>LCC</strong> (ciclo de vida de componentes): TipodeMaquina, Modelo,
+              Componente, Horometro, Ndeparte, Descripcion, Qty, Grupo. Alimenta la página LCC para
+              todos los usuarios.
             </>
           ) : (
             <>
@@ -221,6 +236,13 @@ export function AdminImportsPanel() {
         {importType === 'Temparios' && !isAdmin ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
             Solo administradores pueden gestionar temparios.
+          </p>
+        ) : null}
+
+        {importType === 'LCC' && isAdmin ? <LccAdminImport /> : null}
+        {importType === 'LCC' && !isAdmin ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            Solo administradores pueden gestionar el catálogo LCC.
           </p>
         ) : null}
 

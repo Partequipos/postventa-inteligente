@@ -165,6 +165,8 @@ function moduloToTypeLabel(modulo: string): string {
       return 'Cronograma / Telemetría';
     case 'calculadora':
       return 'Temparios';
+    case 'lcc':
+      return 'LCC';
     case 'cpp':
       return 'Repuestos CPP';
     default:

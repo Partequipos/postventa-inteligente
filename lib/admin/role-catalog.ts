@@ -72,6 +72,13 @@ export const DEFAULT_MODULE_ACCESS: Record<string, Record<UserRole, boolean>> = 
     Technician: true,
     Viewer: false,
   },
+  LCC: {
+    Administrator: true,
+    Coordinator: true,
+    'Sales Advisor': true,
+    Technician: true,
+    Viewer: true,
+  },
   'Repuestos CPP': {
     Administrator: true,
     Coordinator: true,

@@ -246,7 +246,7 @@ export interface CppFilters {
 
 export interface ImportacionRecord {
   id: string;
-  modulo: 'calculadora' | 'proyectados' | 'cpp';
+  modulo: 'calculadora' | 'proyectados' | 'cpp' | 'lcc';
   nombre_archivo: string;
   registros_total: number;
   registros_ok: number;
@@ -254,6 +254,46 @@ export interface ImportacionRecord {
   duplicados: number;
   estado: 'procesando' | 'completado' | 'fallido' | 'parcial';
   created_at: string;
+}
+
+/** Catálogo LCC (ciclo de vida de componentes). */
+export interface LccComponente {
+  id: string;
+  clave: string;
+  tipo_maquina: string;
+  modelo: string;
+  componente: string;
+  horometro_horas: number;
+  n_parte?: string | null;
+  descripcion?: string | null;
+  cantidad?: number | null;
+  grupo?: string | null;
+  activo: boolean;
+  import_batch_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export type LccAlertaEstado = 'vencido' | 'proximo';
+
+/** Cruce telemetría activa × catálogo LCC. */
+export interface LccAlertaComponente {
+  serie: string;
+  marca: string;
+  modelo: string;
+  tipo_maquina: string;
+  titulo?: string | null;
+  sede?: string | null;
+  horometro_maquina: number;
+  componente: string;
+  grupo: string;
+  n_parte: string;
+  descripcion: string;
+  cantidad: number | null;
+  intervalo_horas: number;
+  proximo_en_horas: number;
+  horas_restantes: number;
+  estado: LccAlertaEstado;
 }
 
 export interface SapItemAvailability {
