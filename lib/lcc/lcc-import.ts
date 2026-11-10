@@ -82,6 +82,12 @@ export function buildLccClave(parts: {
   ].join('|');
 }
 
+/**
+ * Mapea una fila del Excel.
+ * Filas vacías o incompletas → null (se omiten, no son error).
+ * La clave incluye el número de fila para cargar todas las líneas del archivo,
+ * aunque repitan tipo/modelo/componente/horómetro/parte.
+ */
 function mapLccSheetRow(row: Record<string, string>, excelRow: number): LccImportRow | null {
   const tipo_maquina = getField(
     row,
@@ -101,22 +107,32 @@ function mapLccSheetRow(row: Record<string, string>, excelRow: number): LccImpor
   const cantidad = toNumber(qtyRaw);
   const grupo = getField(row, 'Grupo', 'grupo') || null;
 
-  if (!tipo_maquina && !modelo && !componente) return null;
-  if (!tipo_maquina || !modelo || !componente) {
-    throw new Error(`Fila ${excelRow}: TipodeMaquina, Modelo y Componente son obligatorios.`);
-  }
-  if (horometro_horas == null || horometro_horas <= 0) {
-    throw new Error(`Fila ${excelRow}: Horometro inválido.`);
-  }
+  const hasAnyContent = Boolean(
+    tipo_maquina ||
+      modelo ||
+      componente ||
+      horometroRaw ||
+      n_parte ||
+      descripcion ||
+      qtyRaw ||
+      grupo
+  );
+  if (!hasAnyContent) return null;
+
+  // Columnas vacías / incompletas: omitir sin error (no bloquear la carga).
+  if (!tipo_maquina || !modelo || !componente) return null;
+  if (horometro_horas == null || horometro_horas <= 0) return null;
+
+  const baseClave = buildLccClave({
+    tipo_maquina,
+    modelo,
+    componente,
+    horometro_horas,
+    n_parte,
+  });
 
   return {
-    clave: buildLccClave({
-      tipo_maquina,
-      modelo,
-      componente,
-      horometro_horas,
-      n_parte,
-    }),
+    clave: `${baseClave}#r${excelRow}`,
     tipo_maquina,
     modelo,
     componente,
@@ -145,31 +161,36 @@ function sheetToObjects(sheet: XLSX.WorkSheet): Record<string, string>[] {
 
 export async function parseLccFile(file: File): Promise<{
   rows: LccImportRow[];
+  skipped: number;
+  totalSheetRows: number;
   errors: Array<{ row: number; message: string }>;
 }> {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
-    return { rows: [], errors: [{ row: 0, message: 'El archivo no tiene hojas.' }] };
+    return {
+      rows: [],
+      skipped: 0,
+      totalSheetRows: 0,
+      errors: [{ row: 0, message: 'El archivo no tiene hojas.' }],
+    };
   }
 
   const sheet = workbook.Sheets[firstSheetName];
   const objects = sheetToObjects(sheet);
   const rows: LccImportRow[] = [];
   const errors: Array<{ row: number; message: string }> = [];
-  const seen = new Set<string>();
+  let skipped = 0;
 
   objects.forEach((object, index) => {
     const excelRow = index + 2;
     try {
       const mapped = mapLccSheetRow(object, excelRow);
-      if (!mapped) return;
-      if (seen.has(mapped.clave)) {
-        errors.push({ row: excelRow, message: 'Fila duplicada en el Excel (misma clave LCC).' });
+      if (!mapped) {
+        skipped += 1;
         return;
       }
-      seen.add(mapped.clave);
       rows.push(mapped);
     } catch (err) {
       errors.push({
@@ -179,5 +200,5 @@ export async function parseLccFile(file: File): Promise<{
     }
   });
 
-  return { rows, errors };
+  return { rows, skipped, totalSheetRows: objects.length, errors };
 }

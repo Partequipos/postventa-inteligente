@@ -126,9 +126,12 @@ export async function importLccFromFile(
       recordsOk: 0,
       recordsError: parsed.errors.length,
       duplicates: 0,
-      total: parsed.errors.length,
+      total: parsed.totalSheetRows,
+      skipped: parsed.skipped,
       errors: parsed.errors,
-      error: parsed.errors[0]?.message ?? 'No se encontraron filas LCC válidas.',
+      error:
+        parsed.errors[0]?.message ??
+        'No se encontraron filas LCC válidas (revise TipodeMaquina, Modelo, Componente y Horometro).',
     };
   }
 
@@ -190,8 +193,9 @@ export async function importLccFromFile(
     importId: batchId,
     recordsOk,
     recordsError,
-    duplicates: result.updated,
-    total: parsed.rows.length + parsed.errors.length,
+    duplicates: 0,
+    skipped: parsed.skipped,
+    total: parsed.totalSheetRows,
     errors: [...parsed.errors, ...result.errors].slice(0, MAX_ERROR_SAMPLES),
   };
 }

@@ -156,6 +156,7 @@ export function ExcelImportPanel({
           recordsError = response.recordsError;
           duplicates = response.duplicates;
           total = response.total ?? recordsOk + recordsError;
+          skipped = response.skipped ?? 0;
           errors = response.errors ?? [];
         } else if (isSupabaseConfigured()) {
           const response = await invokeImportExcel(modulo, f);
@@ -173,17 +174,28 @@ export function ExcelImportPanel({
         const updatedLabel =
           modulo === 'proyectados'
             ? `Registros agregados al historial: ${recordsOk} (no se borran meses anteriores)`
-            : `Actualizados (mismo ID): ${duplicates}`;
+            : modulo === 'lcc'
+              ? `Filas LCC cargadas/actualizadas: ${recordsOk}`
+              : `Actualizados (mismo ID): ${duplicates}`;
 
         const accounted = recordsOk + recordsError + skipped;
         const previewLines = [
           `Archivo: ${f.name}`,
           `Filas leídas del Excel: ${total}`,
-          ...(skipped > 0 ? [`Filas omitidas (vacías / sin serie): ${skipped}`] : []),
+          ...(skipped > 0
+            ? [
+                modulo === 'lcc'
+                  ? `Filas omitidas (vacías o incompletas, sin error): ${skipped}`
+                  : `Filas omitidas (vacías / sin serie): ${skipped}`,
+              ]
+            : []),
           ...(modulo === 'proyectados'
             ? [
                 'Modo: carga aditiva (histórico se conserva; cada mes suma filas nuevas)',
               ]
+            : []),
+          ...(modulo === 'lcc'
+            ? ['Modo: se cargan todas las filas válidas; no se exige ID ni se rechazan repeticiones.']
             : []),
           ...(modulo === 'proyectados' && deduplicated > 0
             ? [`Máquinas sincronizadas (cliente/asesor/ubicación en historial): ${deduplicated}`]
