@@ -262,6 +262,8 @@ export interface LccComponente {
   clave: string;
   tipo_maquina: string;
   modelo: string;
+  /** Modelos equivalentes (ej. ZX200-6 / ZX210LC-6 / ZX210K-6). */
+  modelos_equivalentes?: string | null;
   componente: string;
   horometro_horas: number;
   n_parte?: string | null;
@@ -281,6 +283,10 @@ export interface LccAlertaComponente {
   serie: string;
   marca: string;
   modelo: string;
+  /** Modelo canónico del catálogo LCC que generó la alerta. */
+  modelo_catalogo: string;
+  /** Equivalencias aplicadas (si las hay). */
+  modelos_equivalentes?: string | null;
   tipo_maquina: string;
   titulo?: string | null;
   sede?: string | null;

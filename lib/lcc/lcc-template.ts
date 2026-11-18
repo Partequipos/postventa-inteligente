@@ -5,7 +5,7 @@ import type { LccComponente } from '@/types/database';
 const SAMPLE_ROWS = [
   {
     TipodeMaquina: 'Excavadora',
-    Modelo: 'ZX200-6',
+    Modelo: 'ZX200-6 / ZX210LC-6 / ZX210K-6 / ZX210LCH-6',
     Componente: 'CILINDRO BALDE / BUCKET CYLINDER',
     Horometro: 8000,
     Ndeparte: '7T3354',
@@ -35,7 +35,9 @@ export async function downloadLccExcelTemplate(): Promise<void> {
 export async function downloadLccCatalogExcel(rows: LccComponente[]): Promise<void> {
   const data = rows.map((row) => ({
     TipodeMaquina: row.tipo_maquina,
-    Modelo: row.modelo,
+    Modelo: row.modelos_equivalentes?.trim()
+      ? row.modelos_equivalentes
+      : row.modelo,
     Componente: row.componente,
     Horometro: row.horometro_horas,
     Ndeparte: row.n_parte ?? '',

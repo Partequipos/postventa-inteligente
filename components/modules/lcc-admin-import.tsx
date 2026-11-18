@@ -94,7 +94,7 @@ export function LccAdminImport() {
     <div className="space-y-4">
       <ExcelImportPanel
         title="Importar catálogo LCC"
-        description="Cargue el Excel del fabricante (TipodeMaquina, Modelo, Componente, Horometro, Ndeparte, Descripcion, Qty, Grupo). Se actualiza por clave única."
+        description="Cargue el Excel del fabricante (TipodeMaquina, Modelo, Componente, Horometro, Ndeparte, Descripcion, Qty, Grupo). En Modelo puede ir un solo código (ZX200-6) o una lista con / (ZX200-6 / ZX210LC-6 / …); el cruce con telemetría usa equivalencias."
         expectedColumns={[...LCC_EXCEL_COLUMNS]}
         modulo="lcc"
         onDownloadTemplate={() => downloadLccExcelTemplate()}
@@ -211,6 +211,7 @@ export function LccAdminImport() {
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableHead className="text-xs">Tipo</TableHead>
                   <TableHead className="text-xs">Modelo</TableHead>
+                  <TableHead className="text-xs">Equivalentes</TableHead>
                   <TableHead className="text-xs">Componente</TableHead>
                   <TableHead className="text-xs text-right">Horómetro</TableHead>
                   <TableHead className="text-xs">N° parte</TableHead>
@@ -223,7 +224,7 @@ export function LccAdminImport() {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={`sk-${i}`}>
-                      <TableCell colSpan={8}>
+                      <TableCell colSpan={9}>
                         <Skeleton className="h-6 w-full" />
                       </TableCell>
                     </TableRow>
@@ -231,7 +232,7 @@ export function LccAdminImport() {
                 ) : filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center text-sm text-muted-foreground py-10"
                     >
                       No hay registros LCC. Importe el Excel del fabricante.
@@ -242,6 +243,12 @@ export function LccAdminImport() {
                     <TableRow key={row.id}>
                       <TableCell className="text-xs">{row.tipo_maquina}</TableCell>
                       <TableCell className="text-xs font-medium">{row.modelo}</TableCell>
+                      <TableCell
+                        className="text-xs max-w-[200px] truncate text-muted-foreground"
+                        title={row.modelos_equivalentes ?? undefined}
+                      >
+                        {row.modelos_equivalentes || '—'}
+                      </TableCell>
                       <TableCell className="text-xs max-w-[240px] truncate" title={row.componente}>
                         {row.componente}
                       </TableCell>

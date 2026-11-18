@@ -210,7 +210,8 @@ export default function LccPage() {
             <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
               Cruza la flota activa de telemetría con el catálogo LCC del fabricante. Muestra qué
               componentes deben verificarse o cambiarse según el horómetro actual (±
-              {LCC_NEAR_THRESHOLD_HOURS} h).
+              {LCC_NEAR_THRESHOLD_HOURS} h). Un modelo del catálogo (ej. ZX200-6) aplica a sus
+              equivalentes en telemetría (ZX210LC-6, ZX210K-6, ZX210LCH-6).
             </p>
           </div>
         </div>
@@ -372,6 +373,7 @@ export default function LccPage() {
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="text-xs">Serie</TableHead>
                     <TableHead className="text-xs">Tipo / Modelo</TableHead>
+                    <TableHead className="text-xs">Modelo LCC / equiv.</TableHead>
                     <TableHead className="text-xs text-right">Horóm. máquina</TableHead>
                     <TableHead className="text-xs">Componente</TableHead>
                     <TableHead className="text-xs">Grupo</TableHead>
@@ -385,7 +387,7 @@ export default function LccPage() {
                   {isLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
                       <TableRow key={`a-sk-${i}`}>
-                        <TableCell colSpan={9}>
+                        <TableCell colSpan={10}>
                           <Skeleton className="h-6 w-full" />
                         </TableCell>
                       </TableRow>
@@ -393,7 +395,7 @@ export default function LccPage() {
                   ) : filteredAlertas.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={9}
+                        colSpan={10}
                         className="text-center text-sm text-muted-foreground py-10"
                       >
                         No hay componentes próximos o vencidos con los filtros actuales. Importe el
@@ -407,6 +409,22 @@ export default function LccPage() {
                         <TableCell className="text-xs">
                           <div className="font-medium">{row.modelo}</div>
                           <div className="text-muted-foreground">{row.tipo_maquina}</div>
+                        </TableCell>
+                        <TableCell
+                          className="text-xs max-w-[200px] truncate"
+                          title={
+                            row.modelos_equivalentes?.trim() ||
+                            (row.modelo_catalogo !== row.modelo
+                              ? `${row.modelo_catalogo} → ${row.modelo}`
+                              : row.modelo_catalogo)
+                          }
+                        >
+                          <div className="font-medium">{row.modelo_catalogo}</div>
+                          {row.modelo_catalogo !== row.modelo ? (
+                            <div className="text-[10px] text-muted-foreground">
+                              Equiv. telemetría: {row.modelo}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-xs text-right tabular-nums">
                           {row.horometro_maquina.toLocaleString('es-CO')} h
@@ -514,6 +532,7 @@ export default function LccPage() {
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="text-xs">Tipo</TableHead>
                     <TableHead className="text-xs">Modelo</TableHead>
+                    <TableHead className="text-xs">Equivalentes</TableHead>
                     <TableHead className="text-xs">Componente</TableHead>
                     <TableHead className="text-xs text-right">Horómetro</TableHead>
                     <TableHead className="text-xs">N° parte</TableHead>
@@ -526,7 +545,7 @@ export default function LccPage() {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={`c-sk-${i}`}>
-                        <TableCell colSpan={8}>
+                        <TableCell colSpan={9}>
                           <Skeleton className="h-6 w-full" />
                         </TableCell>
                       </TableRow>
@@ -534,7 +553,7 @@ export default function LccPage() {
                   ) : filteredCatalogo.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="text-center text-sm text-muted-foreground py-10"
                       >
                         Catálogo vacío. Cargue el Excel LCC en Administración → Importaciones.
@@ -545,6 +564,12 @@ export default function LccPage() {
                       <TableRow key={row.id}>
                         <TableCell className="text-xs">{row.tipo_maquina}</TableCell>
                         <TableCell className="text-xs font-medium">{row.modelo}</TableCell>
+                        <TableCell
+                          className="text-xs max-w-[180px] truncate text-muted-foreground"
+                          title={row.modelos_equivalentes ?? undefined}
+                        >
+                          {row.modelos_equivalentes || '—'}
+                        </TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate" title={row.componente}>
                           {row.componente}
                         </TableCell>

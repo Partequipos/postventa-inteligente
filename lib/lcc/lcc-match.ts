@@ -1,5 +1,6 @@
 import type { LccAlertaComponente, LccAlertaEstado, LccComponente, TelemetriaEquipo } from '@/types/database';
 import { normalizeLccKeyPart } from '@/lib/lcc/lcc-import';
+import { modelosLccEquivalentes } from '@/lib/lcc/lcc-model-equivalents';
 
 /** Ventana (h) para considerar un componente próximo a verificar/cambiar. */
 export const LCC_NEAR_THRESHOLD_HOURS = 500;
@@ -18,13 +19,6 @@ export function resolveLccAlertaEstado(hoursRemaining: number): LccAlertaEstado 
   return null;
 }
 
-function modeloCompatible(teleModelo: string, lccModelo: string): boolean {
-  const a = normalizeLccKeyPart(teleModelo);
-  const b = normalizeLccKeyPart(lccModelo);
-  if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
-}
-
 function tipoCompatible(teleTipo: string | null | undefined, lccTipo: string): boolean {
   const a = normalizeLccKeyPart(teleTipo ?? '');
   const b = normalizeLccKeyPart(lccTipo);
@@ -35,7 +29,7 @@ function tipoCompatible(teleTipo: string | null | undefined, lccTipo: string): b
 
 /**
  * Cruza flota activa (última telemetría por serie) con el catálogo LCC.
- * Solo incluye componentes vencidos o dentro de la ventana de proximidad.
+ * Respeta equivalencias de modelo (familia conocida o lista "A / B / C").
  */
 export function buildLccAlertas(
   maquinas: TelemetriaEquipo[],
@@ -50,7 +44,11 @@ export function buildLccAlertas(
     if (horas <= 0) continue;
 
     for (const item of activos) {
-      if (!modeloCompatible(maquina.modelo, item.modelo)) continue;
+      if (
+        !modelosLccEquivalentes(maquina.modelo, item.modelo, item.modelos_equivalentes)
+      ) {
+        continue;
+      }
       if (!tipoCompatible(maquina.tipo_maquina, item.tipo_maquina)) continue;
 
       const intervalo = Number(item.horometro_horas) || 0;
@@ -68,6 +66,8 @@ export function buildLccAlertas(
         serie: maquina.serie,
         marca: maquina.marca,
         modelo: maquina.modelo,
+        modelo_catalogo: item.modelo,
+        modelos_equivalentes: item.modelos_equivalentes ?? null,
         tipo_maquina: maquina.tipo_maquina?.trim() || item.tipo_maquina,
         titulo: maquina.titulo,
         sede: maquina.sede,

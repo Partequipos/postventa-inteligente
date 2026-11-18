@@ -1,4 +1,8 @@
 import * as XLSX from 'xlsx';
+import {
+  normalizeLccModelo,
+  resolveModeloImportFields,
+} from '@/lib/lcc/lcc-model-equivalents';
 
 export const LCC_EXCEL_COLUMNS = [
   'TipodeMaquina',
@@ -15,6 +19,8 @@ export interface LccImportRow {
   clave: string;
   tipo_maquina: string;
   modelo: string;
+  /** Lista "A / B / C" de modelos equivalentes al canónico. */
+  modelos_equivalentes: string | null;
   componente: string;
   horometro_horas: number;
   n_parte: string | null;
@@ -57,14 +63,7 @@ function getField(row: Record<string, string>, ...keys: string[]): string {
   return '';
 }
 
-export function normalizeLccKeyPart(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '');
-}
+export { normalizeLccModelo as normalizeLccKeyPart } from '@/lib/lcc/lcc-model-equivalents';
 
 export function buildLccClave(parts: {
   tipo_maquina: string;
@@ -74,11 +73,11 @@ export function buildLccClave(parts: {
   n_parte: string | null;
 }): string {
   return [
-    normalizeLccKeyPart(parts.tipo_maquina),
-    normalizeLccKeyPart(parts.modelo),
-    normalizeLccKeyPart(parts.componente),
+    normalizeLccModelo(parts.tipo_maquina),
+    normalizeLccModelo(parts.modelo),
+    normalizeLccModelo(parts.componente),
     String(parts.horometro_horas),
-    normalizeLccKeyPart(parts.n_parte ?? ''),
+    normalizeLccModelo(parts.n_parte ?? ''),
   ].join('|');
 }
 
@@ -123,9 +122,20 @@ function mapLccSheetRow(row: Record<string, string>, excelRow: number): LccImpor
   if (!tipo_maquina || !modelo || !componente) return null;
   if (horometro_horas == null || horometro_horas <= 0) return null;
 
+  const equivalentesRaw = getField(
+    row,
+    'ModelosEquivalentes',
+    'Modelos Equivalentes',
+    'Equivalentes',
+    'modelos_equivalentes'
+  );
+  const resolved = resolveModeloImportFields(
+    equivalentesRaw ? `${modelo} / ${equivalentesRaw}` : modelo
+  );
+
   const baseClave = buildLccClave({
     tipo_maquina,
-    modelo,
+    modelo: resolved.modelo,
     componente,
     horometro_horas,
     n_parte,
@@ -134,7 +144,8 @@ function mapLccSheetRow(row: Record<string, string>, excelRow: number): LccImpor
   return {
     clave: `${baseClave}#r${excelRow}`,
     tipo_maquina,
-    modelo,
+    modelo: resolved.modelo,
+    modelos_equivalentes: resolved.modelos_equivalentes,
     componente,
     horometro_horas,
     n_parte,

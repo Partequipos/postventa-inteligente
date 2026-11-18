@@ -9,6 +9,7 @@ function mapLccRow(row: Record<string, unknown>): LccComponente {
     clave: String(row.clave ?? ''),
     tipo_maquina: String(row.tipo_maquina ?? ''),
     modelo: String(row.modelo ?? ''),
+    modelos_equivalentes: (row.modelos_equivalentes as string | null) ?? null,
     componente: String(row.componente ?? ''),
     horometro_horas: Number(row.horometro_horas) || 0,
     n_parte: (row.n_parte as string | null) ?? null,

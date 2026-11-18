@@ -36,6 +36,7 @@ function toDbPayload(
     clave: row.clave,
     tipo_maquina: row.tipo_maquina,
     modelo: row.modelo,
+    modelos_equivalentes: row.modelos_equivalentes,
     componente: row.componente,
     horometro_horas: row.horometro_horas,
     n_parte: row.n_parte,

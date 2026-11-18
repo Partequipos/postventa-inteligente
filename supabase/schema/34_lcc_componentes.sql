@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS public.lcc_componentes (
   clave             TEXT NOT NULL,
   tipo_maquina      TEXT NOT NULL,
   modelo            TEXT NOT NULL,
+  /** Equivalentes: ZX200-6 / ZX210LC-6 / ZX210K-6 / ZX210LCH-6 */
+  modelos_equivalentes TEXT,
   componente        TEXT NOT NULL,
   horometro_horas   NUMERIC(18, 2) NOT NULL CHECK (horometro_horas > 0),
   n_parte           TEXT,
