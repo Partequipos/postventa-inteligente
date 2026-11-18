@@ -210,8 +210,8 @@ export default function LccPage() {
             <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
               Cruza la flota activa de telemetría con el catálogo LCC del fabricante. Muestra qué
               componentes deben verificarse o cambiarse según el horómetro actual (±
-              {LCC_NEAR_THRESHOLD_HOURS} h). Un modelo del catálogo (ej. ZX200-6) aplica a sus
-              equivalentes en telemetría (ZX210LC-6, ZX210K-6, ZX210LCH-6).
+              {LCC_NEAR_THRESHOLD_HOURS} h).               Un modelo del catálogo (ej. ZX200-6 o ZX200-5B) aplica a sus
+              equivalentes en telemetría (ZX210LC-6/5B, ZX210K-6/5B, ZX210LCH-6/5B).
             </p>
           </div>
         </div>

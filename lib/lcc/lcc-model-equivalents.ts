@@ -15,6 +15,7 @@ export function normalizeLccModelo(value: string): string {
  */
 export const LCC_MODELO_EQUIVALENCE_GROUPS: readonly (readonly string[])[] = [
   ['ZX200-6', 'ZX210LC-6', 'ZX210K-6', 'ZX210LCH-6'],
+  ['ZX200-5B', 'ZX210LC-5B', 'ZX210K-5B', 'ZX210LCH-5B'],
 ] as const;
 
 /** Separa "ZX200-6 / ZX210LC-6 / ZX210K-6" en tokens de modelo. */
