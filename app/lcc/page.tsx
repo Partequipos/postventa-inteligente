@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Cog,
   Filter,
+  FilterX,
   Gauge,
   Layers,
   Search,
@@ -28,6 +29,7 @@ import {
 import { useLccDashboard } from '@/hooks/use-lcc';
 import { LCC_NEAR_THRESHOLD_HOURS } from '@/lib/lcc/lcc-match';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -216,6 +218,36 @@ export default function LccPage() {
     setCatPage(1);
   }, [catTipo, catComponente, catGrupo, catHorometro, catSearch]);
 
+  const alertaFiltersActive =
+    alertaTipo !== 'all' ||
+    alertaModelo !== 'all' ||
+    alertaComponente !== 'all' ||
+    alertaHorometro !== 'all' ||
+    alertaSearch.trim().length > 0;
+
+  const catFiltersActive =
+    catTipo !== 'all' ||
+    catComponente !== 'all' ||
+    catGrupo !== 'all' ||
+    catHorometro !== 'all' ||
+    catSearch.trim().length > 0;
+
+  const clearAlertaFilters = () => {
+    setAlertaTipo('all');
+    setAlertaModelo('all');
+    setAlertaComponente('all');
+    setAlertaHorometro('all');
+    setAlertaSearch('');
+  };
+
+  const clearCatFilters = () => {
+    setCatTipo('all');
+    setCatComponente('all');
+    setCatGrupo('all');
+    setCatHorometro('all');
+    setCatSearch('');
+  };
+
   const alertasPageRows = pageSlice(filteredAlertas, alertaPage, LCC_TABLE_PAGE_SIZE);
   const catalogoPageRows = pageSlice(filteredCatalogo, catPage, LCC_TABLE_PAGE_SIZE);
 
@@ -398,6 +430,18 @@ export default function LccPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={clearAlertaFilters}
+                disabled={!alertaFiltersActive}
+                aria-label="Borrar filtros de alertas"
+              >
+                <FilterX className="h-3.5 w-3.5" />
+                Borrar filtros
+              </Button>
             </>
           }
         >
@@ -562,6 +606,18 @@ export default function LccPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={clearCatFilters}
+                disabled={!catFiltersActive}
+                aria-label="Borrar filtros del catálogo"
+              >
+                <FilterX className="h-3.5 w-3.5" />
+                Borrar filtros
+              </Button>
             </>
           }
         >
